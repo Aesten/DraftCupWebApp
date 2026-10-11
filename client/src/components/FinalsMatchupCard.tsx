@@ -14,13 +14,14 @@ const FACTION_ICONS: Record<string, string> = { Aserai, Battania, Empire, Khuzai
 function FactionIcon({ name }: { name: string | null | undefined }) {
   const src = name ? FACTION_ICONS[name] : undefined
   if (!src) return (
-    <div className="w-10 h-10 rounded-full bg-white/10 border-2 border-white/10 flex items-center justify-center flex-shrink-0">
-      <span className="text-xs text-white/30">?</span>
+    <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center flex-shrink-0">
+      <span className="text-xs text-zinc-500">?</span>
     </div>
   )
-  return <img src={src} alt={name ?? ''} className="w-10 h-10 rounded-full object-cover border-2 border-white/20 flex-shrink-0 drop-shadow-lg" />
+  return <img src={src} alt={name ?? ''} className="w-10 h-10 rounded-full object-cover border border-amber-700 shadow-[0_0_0_2px_#0c0b09] flex-shrink-0" />
 }
 
+/** The finals result: map image, crests and the server command. Bordered in gilt because it is the one that matters. */
 export default function FinalsMatchupCard({ mapImage, mapName, mapGameId, factionAName, factionBName }: {
   mapImage:    string | null | undefined
   mapName:     string | null | undefined
@@ -43,41 +44,31 @@ export default function FinalsMatchupCard({ mapImage, mapName, mapGameId, factio
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+    <div className={cn('panel overflow-hidden', ready && 'border-amber-700')}>
       <div className="relative overflow-hidden" style={{ aspectRatio: '1920/855' }}>
         {mapImage
           ? <img src={imgSrc(mapImage)} className="absolute inset-0 w-full h-full object-cover" alt="" />
-          : <div className="absolute inset-0 bg-zinc-800/60" />
+          : <div className="absolute inset-0 bg-zinc-800" />
         }
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-black/60" />
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/60 via-zinc-950/10 to-zinc-950/70" />
 
-        {/* Label — top left */}
         <div className="absolute top-1.5 left-2.5">
-          <span className="text-[9px] font-mono uppercase tracking-widest text-white/60">Finals Matchup</span>
+          <span className="font-display text-[9px] font-semibold uppercase tracking-[0.2em] text-amber-400">Finals matchup</span>
         </div>
 
-        {/* Map name — top right */}
         {mapName && (
           <div className="absolute top-1.5 right-2.5">
-            <span className="text-[10px] font-black text-amber-400"
-              style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-              {mapName}
-            </span>
+            <span className="font-display text-[10px] font-bold text-amber-400">{mapName}</span>
           </div>
         )}
 
-        {/* Faction icons VS row — centered */}
         <div className="absolute inset-0 flex items-center justify-center gap-3">
           <FactionIcon name={factionAName} />
-          <span className="text-lg font-black text-white/70 tracking-widest"
-            style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-            VS
-          </span>
+          <span className="font-display text-sm font-bold text-zinc-100 tracking-[0.2em]">VS</span>
           <FactionIcon name={factionBName} />
         </div>
 
-        {/* Command bar — bottom overlay */}
-        <div className="absolute bottom-0 inset-x-0 flex items-center gap-1.5 px-2.5 py-1 bg-black/50">
+        <div className="absolute bottom-0 inset-x-0 flex items-center gap-1.5 px-2.5 py-1 bg-zinc-950/75">
           <p className={cn('text-[10px] font-mono truncate flex-1 select-all', ready ? 'text-zinc-300' : 'text-zinc-600')}>
             {command}
           </p>

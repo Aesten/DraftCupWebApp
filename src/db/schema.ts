@@ -109,6 +109,10 @@ CREATE TABLE IF NOT EXISTS session_bids (
   captain_id     INTEGER NOT NULL REFERENCES captains(id) ON DELETE CASCADE,
   captain_name   TEXT    NOT NULL,
   amount         REAL    NOT NULL,
+  -- 1 when the auctioneer entered this bid on a captain's behalf. An override
+  -- is the auctioneer's final word: it becomes the standing bid regardless of
+  -- amount (see TOP_BID_SQL) and is not subject to the pre-sale cooldown.
+  is_override    INTEGER NOT NULL DEFAULT 0,
   placed_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { type Captain } from '@/api/auctions'
 import { type Match } from '@/api/brackets'
 import { resolveTeam } from '@/components/tournament/GroupStageView'
+import { PanelHead } from '@/components/ui'
 
 // ─── Bracket section wrapper ──────────────────────────────────────────────────
 
@@ -12,10 +13,8 @@ export function BracketSection({ title, children }: {
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl">
-      <div className="px-4 py-2.5 border-b border-zinc-800">
-        <span className="text-xs font-mono uppercase tracking-widest text-zinc-500">{title}</span>
-      </div>
+    <div className="panel overflow-hidden">
+      <PanelHead>{title}</PanelHead>
       {children}
     </div>
   )
@@ -61,10 +60,10 @@ export function KnockoutScoreRow({ match, captains, canManage, onSave, showLabel
 
   return (
     <div className="space-y-0.5">
-      {showLabel && <p className="text-[10px] font-mono text-zinc-600 truncate">{match.match_label}</p>}
-      <div className={cn('flex items-center gap-1 px-2 py-1 rounded-lg border',
-        played ? 'border-zinc-700/60 bg-zinc-950/80' : 'border-zinc-800/50 bg-zinc-950/40')}>
-        <span className="w-2.5 flex-shrink-0 flex items-center">
+      {showLabel && <p className="font-display text-[9px] uppercase tracking-[0.15em] text-zinc-600 truncate">{match.match_label}</p>}
+      <div className={cn('flex items-center gap-1 px-2 py-1 rounded-sm border',
+        played ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-800/60 bg-zinc-950/50')}>
+        <span className="w-2.5 flex-shrink-0 flex items-center justify-center">
           {winA && <Crown className="w-2.5 h-2.5 text-amber-400" />}
         </span>
         <span className={cn('text-xs text-right flex-1 min-w-0 truncate',
@@ -91,7 +90,7 @@ export function KnockoutScoreRow({ match, captains, canManage, onSave, showLabel
           winB ? 'text-amber-400 font-semibold' : tdB ? 'text-zinc-600 italic' : 'text-zinc-300')}>
           {nameB}
         </span>
-        <span className="w-2.5 flex-shrink-0 flex items-center">
+        <span className="w-2.5 flex-shrink-0 flex items-center justify-center">
           {winB && <Crown className="w-2.5 h-2.5 text-amber-400" />}
         </span>
         {canManage && (

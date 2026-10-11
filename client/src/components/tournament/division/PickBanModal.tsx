@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useWs } from '@/hooks/useWs'
-import { bracketsApi, type PickBanSession, type PickBanBan, type PickBanMapDetail, type PickBanCaptainDetail } from '@/api/brackets'
-import { factionsApi, type Faction } from '@/api/maps'
+import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { bracketsApi, type PickBanSession, type PickBanMapDetail, type PickBanCaptainDetail } from '@/api/brackets'
 import { cn, imgSrc } from '@/lib/utils'
+import { qk, usePickBanDetail, useFactions } from '@/queries'
 import { Loader2, Swords, Check, X, Trash2 } from 'lucide-react'
 import { useToast } from '@/context/ToastContext'
 import FinalsMatchupCard from '@/components/FinalsMatchupCard'
+import { Button, Seal, inputSmCls } from '@/components/ui'
 
 
 const SIDE = {
-  a: { text: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/25',   label: 'Side A' },
-  b: { text: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/25', label: 'Side B' },
+  a: { text: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-600',   label: 'Side A' },
+  b: { text: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-600', label: 'Side B' },
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -20,32 +21,32 @@ function MapCard({ map, banned, bannedBy, selected }: {
 }) {
   return (
     <div className={cn(
-      'relative rounded-xl overflow-hidden border aspect-[4/3] flex flex-col justify-end',
+      'relative rounded-sm overflow-hidden border aspect-[4/3] flex flex-col justify-end',
       banned   && 'opacity-40 border-zinc-800',
-      selected && 'border-amber-500/60 shadow-lg shadow-amber-500/10',
+      selected && 'border-amber-500 shadow-[inset_0_0_0_1px_#c8a24a]',
       !banned && !selected && 'border-zinc-800',
     )}>
       {map.image_path
         ? <img src={imgSrc(map.image_path)} alt={map.name} className="absolute inset-0 w-full h-full object-cover" />
-        : <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900" />
+        : <div className="absolute inset-0 bg-zinc-800" />
       }
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/85 via-zinc-950/20 to-transparent" />
       {banned && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 gap-1">
-          <span className="text-sm font-black text-zinc-400 line-through">{map.name}</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/60 gap-1">
+          <span className="font-display text-xs font-bold text-zinc-400 line-through">{map.name}</span>
           {bannedBy && (
-            <span className={cn('text-[10px] font-mono px-2 py-0.5 rounded-full border',
-              bannedBy === 'a' ? 'text-blue-400 bg-blue-400/10 border-blue-400/20' : 'text-violet-400 bg-violet-400/10 border-violet-400/20'
+            <span className={cn('font-display text-[8px] font-bold uppercase tracking-[0.15em] px-1.5 py-0.5 border',
+              bannedBy === 'a' ? 'text-blue-400 bg-blue-500/10 border-blue-600' : 'text-violet-400 bg-violet-500/10 border-violet-600'
             )}>
-              BANNED BY {SIDE[bannedBy].label.toUpperCase()}
+              Banned by {SIDE[bannedBy].label}
             </span>
           )}
         </div>
       )}
       {!banned && (
         <div className="relative px-2 pb-2 pt-6">
-          <p className={cn('text-xs font-bold truncate', selected ? 'text-amber-400' : 'text-zinc-200')}>{map.name}</p>
-          {selected && <span className="text-[10px] font-mono text-amber-400/80">SELECTED</span>}
+          <p className={cn('font-display text-[11px] font-bold truncate', selected ? 'text-amber-400' : 'text-zinc-100')}>{map.name}</p>
+          {selected && <span className="font-display text-[8px] uppercase tracking-[0.2em] text-amber-400">Selected</span>}
         </div>
       )}
     </div>
@@ -86,19 +87,19 @@ function CaptainCard({ side, captain, session, banSeq }: {
   const status = captainStatus(side, session, banSeq)
   const dotCn  = status.dot === 'bg-side' ? (side === 'a' ? 'bg-blue-400' : 'bg-violet-400') : status.dot
   return (
-    <div className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border', s.bg, s.border)}>
-      <div className={cn('w-2 h-2 rounded-full flex-shrink-0', dotCn, status.pulse && 'animate-pulse')} />
+    <div className={cn('flex items-center gap-3 px-4 py-3 rounded-sm border', s.bg, s.border)}>
+      <div className={cn('w-2 h-2 rotate-45 flex-shrink-0', dotCn, status.pulse && 'animate-pulse')} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <p className={cn('text-sm font-bold truncate', status.done ? 'text-green-300' : s.text)}>
+          <p className={cn('font-display text-xs font-bold tracking-[0.04em] truncate', status.done ? 'text-green-300' : s.text)}>
             {captain?.display_name || captain?.team_name || s.label}
           </p>
-          <span className={cn('text-[9px] font-mono px-1.5 py-0.5 rounded border flex-shrink-0', s.text,
-            side === 'a' ? 'bg-blue-500/10 border-blue-500/20' : 'bg-violet-500/10 border-violet-500/20')}>
+          <span className={cn('font-display text-[8px] font-bold uppercase tracking-[0.15em] px-1.5 py-0.5 border flex-shrink-0', s.text, s.border,
+            side === 'a' ? 'bg-blue-500/10' : 'bg-violet-500/10')}>
             {s.label}
           </span>
         </div>
-        <p className="text-[10px] font-mono text-zinc-500">{status.label}</p>
+        <p className="text-xs text-zinc-500">{status.label}</p>
       </div>
     </div>
   )
@@ -109,16 +110,16 @@ function BanStepper({ sequence, currentTurn }: { sequence: ('a' | 'b')[]; curren
     <div className="flex items-center gap-1.5 justify-center">
       {sequence.map((side, i) => (
         <div key={i} className={cn(
-          'flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold border transition-all',
+          'flex items-center justify-center w-6 h-6 rounded-sm font-display text-[10px] font-bold border transition-colors',
           i < currentTurn
             ? 'bg-zinc-700 border-zinc-600 text-zinc-500'
             : i === currentTurn
               ? side === 'a'
-                ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 scale-110'
-                : 'bg-violet-500/20 border-violet-500/50 text-violet-300 scale-110'
+                ? 'bg-blue-500/20 border-blue-400 text-blue-300'
+                : 'bg-violet-500/20 border-violet-400 text-violet-300'
               : side === 'a'
-                ? 'bg-zinc-900 border-blue-500/20 text-blue-500/40'
-                : 'bg-zinc-900 border-violet-500/20 text-violet-500/40',
+                ? 'bg-zinc-900 border-blue-600/50 text-blue-400/50'
+                : 'bg-zinc-900 border-violet-600/50 text-violet-400/50',
         )}>
           {side.toUpperCase()}
         </div>
@@ -128,7 +129,7 @@ function BanStepper({ sequence, currentTurn }: { sequence: ('a' | 'b')[]; curren
 }
 
 
-const selectCn = 'w-full appearance-none px-3 py-2 rounded-xl border text-sm font-medium bg-zinc-800 border-zinc-700 text-zinc-200 focus:outline-none focus:border-amber-500/50 cursor-pointer transition-colors hover:border-zinc-600'
+const selectCn = cn(inputSmCls, 'w-full cursor-pointer')
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
@@ -138,15 +139,19 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
   onClose:   () => void
 }) {
   const { toast } = useToast()
+  const qc = useQueryClient()
 
-  const [session,    setSession]    = useState<PickBanSession | null>(null)
-  const [bans,       setBans]       = useState<PickBanBan[]>([])
-  const [factions,   setFactions]   = useState<Faction[]>([])
-  const [mapPool,    setMapPool]    = useState<PickBanMapDetail[]>([])
-  const [captainA,   setCaptainA]   = useState<PickBanCaptainDetail | null>(null)
-  const [captainB,   setCaptainB]   = useState<PickBanCaptainDetail | null>(null)
-  const [chosenMap,  setChosenMap]  = useState<PickBanMapDetail | null>(null)
-  const [loading,    setLoading]    = useState(true)
+  const detailQ   = usePickBanDetail(sessionId)
+  const factionsQ = useFactions()
+  const session   = detailQ.data?.session ?? null
+  const bans      = detailQ.data?.bans ?? []
+  const mapPool   = detailQ.data?.mapPool ?? []
+  const captainA  = detailQ.data?.captainA ?? null
+  const captainB  = detailQ.data?.captainB ?? null
+  const chosenMap = detailQ.data?.chosenMap ?? null
+  const factions  = factionsQ.data ?? []
+  const loading   = detailQ.isPending || factionsQ.isPending
+
   const [deleting,   setDeleting]   = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
 
@@ -159,37 +164,14 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
 
   const mouseDownOnBackdrop = useRef(false)
 
-  const load = useCallback(async () => {
-    const [data, factionList] = await Promise.all([
-      bracketsApi.getPickBan(sessionId),
-      factionsApi.list(),
-    ])
-    setSession(data.session)
-    setBans(data.bans)
-    setFactions(factionList)
-    setMapPool(data.mapPool)
-    setCaptainA(data.captainA)
-    setCaptainB(data.captainB)
-    setChosenMap(data.chosenMap)
-    if (!overrideInit.current && data.session.status === 'complete') {
-      overrideInit.current = true
-      if (data.session.chosen_map_id) setOverrideMap(data.session.chosen_map_id)
-      if (typeof data.session.a_pick === 'number') setOverrideA(data.session.a_pick)
-      if (typeof data.session.b_pick === 'number') setOverrideB(data.session.b_pick)
-    }
-    setLoading(false)
-  }, [sessionId])
-
-  useEffect(() => { load() }, [load])
-
-  useWs({
-    sessionId,
-    token:     null,
-    path:      'pickban',
-    onMessage: load,
-    onOpen:    load,
-    enabled:   session?.status !== 'complete',
-  })
+  // Seed the override selects from the result the first time it is complete.
+  useEffect(() => {
+    if (!session || overrideInit.current || session.status !== 'complete') return
+    overrideInit.current = true
+    if (session.chosen_map_id) setOverrideMap(session.chosen_map_id)
+    if (typeof session.a_pick === 'number') setOverrideA(session.a_pick)
+    if (typeof session.b_pick === 'number') setOverrideB(session.b_pick)
+  }, [session])
 
   async function doDelete() {
     setDeleting(true)
@@ -211,8 +193,8 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
         a_pick:        overrideA as number,
         b_pick:        overrideB as number,
       })
-      setSession(data.session)
-      setChosenMap(data.chosenMap)
+      // The override returns the full detail: write it straight into the cache.
+      qc.setQueryData(qk.pickBan(sessionId), data)
       toast('Result updated', 'success')
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : 'Failed', 'error')
@@ -236,53 +218,33 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
       onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
       onClick={e => { if (mouseDownOnBackdrop.current && !deleting && e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="panel border-zinc-700 w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col overflow-hidden shadow-[0_24px_48px_rgba(0,0,0,0.6)]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 flex-shrink-0">
+        <div className="panel-head flex items-center justify-between px-5 py-2.5 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <Swords className="w-4 h-4 text-amber-500/70" />
-            <span className="text-base font-black tracking-tight text-zinc-100"
-              style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-              FINALS PICK-BAN
-            </span>
+            <Swords className="w-4 h-4 text-amber-500" />
+            <span className="font-display text-sm font-bold uppercase tracking-[0.15em] text-zinc-50">Finals pick-ban</span>
             {session && (
-              <span className={cn(
-                'text-[10px] font-mono px-2 py-0.5 rounded-full border',
-                session.status === 'complete'
-                  ? 'text-green-400 bg-green-400/10 border-green-400/20'
-                  : 'text-amber-400 bg-amber-400/10 border-amber-400/20 animate-pulse',
-              )}>
-                {statusLabel[session.status] ?? session.status}
-              </span>
+              <Seal tone={session.status === 'complete' ? 'finished' : 'gilt'}>{statusLabel[session.status] ?? session.status}</Seal>
             )}
           </div>
           <div className="flex items-center gap-2">
             {session && !confirmDel && (
-              <button onClick={() => setConfirmDel(true)} disabled={deleting}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs hover:bg-red-500/20 transition-colors disabled:opacity-40">
-                <Trash2 className="w-3 h-3" /> Delete
-              </button>
+              <Button size="sm" variant="danger" onClick={() => setConfirmDel(true)} disabled={deleting} icon={<Trash2 className="w-3 h-3" />}>Delete</Button>
             )}
             {confirmDel && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-zinc-500">Delete session?</span>
-                <button onClick={doDelete} disabled={deleting}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-xs hover:bg-red-500/25 transition-colors disabled:opacity-40">
-                  {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                  Confirm
-                </button>
-                <button onClick={() => setConfirmDel(false)}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-400 text-xs hover:bg-zinc-700 transition-colors">
-                  Cancel
-                </button>
+                <Button size="sm" variant="danger" onClick={doDelete} loading={deleting} icon={<Check className="w-3 h-3" />}>Confirm</Button>
+                <Button size="sm" onClick={() => setConfirmDel(false)}>Cancel</Button>
               </div>
             )}
-            <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 transition-colors ml-1">
+            <button onClick={onClose} className="p-1 rounded-sm text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 transition-colors ml-1" aria-label="Close">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -314,8 +276,8 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
                 const factionA = session.status === 'complete' && session.revealed ? factions.find(f => f.id === (session.a_pick as number)) : null
                 const factionB = session.status === 'complete' && session.revealed ? factions.find(f => f.id === (session.b_pick as number)) : null
                 return (
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 space-y-1.5">
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mb-2">Event log</p>
+                  <div className="panel p-3 space-y-1.5">
+                    <p className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600 mb-2">Event log</p>
                     {sortedBans.map((ban, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs">
                         <span className={ban.captain_side === 'a' ? 'text-blue-400 font-semibold' : 'text-violet-400 font-semibold'}>
@@ -352,7 +314,7 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
               {/* WAITING */}
               {session.status === 'waiting' && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600">Map Pool</p>
+                  <p className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600">Map Pool</p>
                   <div className="grid grid-cols-5 gap-2">
                     {mapPool.map(m => <MapCard key={m.id} map={m} />)}
                   </div>
@@ -381,7 +343,7 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
                 <div className="space-y-3">
                   {remaining.length === 1 && mapPool.find(m => m.id === remaining[0]) && (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 text-center">Finals Map</p>
+                      <p className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600 text-center">Finals Map</p>
                       <div className="max-w-[140px] mx-auto">
                         <MapCard map={mapPool.find(m => m.id === remaining[0])!} selected />
                       </div>
@@ -404,8 +366,8 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
                     />
 
                     {/* Override result */}
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">Override result</p>
+                    <div className="panel p-4 space-y-3">
+                      <p className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-500">Override result</p>
                       <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <p className="text-[10px] text-zinc-600">Map</p>
@@ -426,14 +388,11 @@ export default function PickBanModal({ sessionId, onDeleted, onClose }: {
                           </select>
                         </div>
                       </div>
-                      <button
-                        onClick={saveOverride}
-                        disabled={saving || overrideMap === '' || overrideA === '' || overrideB === ''}
-                        className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-amber-500 text-black text-sm font-semibold hover:bg-amber-400 transition-colors disabled:opacity-40"
-                      >
-                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      <Button variant="primary" onClick={saveOverride} loading={saving}
+                        disabled={overrideMap === '' || overrideA === '' || overrideB === ''}
+                        icon={<Check className="w-3.5 h-3.5" />} className="w-full py-2.5">
                         Save override
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )

@@ -1,6 +1,7 @@
 import { api } from './client'
+import type { Role } from '@shared/types'
 
-export type Role = 'admin' | 'host' | 'auctioneer' | 'captain'
+export type { Role }
 
 export interface MeResponse {
   role:             Role

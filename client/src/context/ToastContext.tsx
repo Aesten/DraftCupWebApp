@@ -30,11 +30,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {current && (
           <div key={current.id}
             className={cn(
-              'flex items-center gap-2.5 px-4 py-2.5 rounded-xl border shadow-2xl text-sm font-medium',
-              'transition-all duration-200',
-              current.type === 'success' && 'bg-zinc-900 border-green-500/40 text-zinc-100',
-              current.type === 'error'   && 'bg-zinc-900 border-red-500/40 text-zinc-100',
-              current.type === 'info'    && 'bg-zinc-900 border-zinc-600 text-zinc-300',
+              'panel flex items-center gap-2.5 px-4 py-2.5 shadow-[0_12px_32px_rgba(0,0,0,0.6)] text-sm',
+              'transition-all duration-200 animate-fade-up',
+              current.type === 'success' && 'border-green-600 text-zinc-100',
+              current.type === 'error'   && 'border-red-600 text-zinc-100',
+              current.type === 'info'    && 'border-zinc-600 text-zinc-300',
             )}>
             {current.type === 'success' && <Check       className="w-4 h-4 text-green-400 flex-shrink-0" />}
             {current.type === 'error'   && <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}

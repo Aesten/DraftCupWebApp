@@ -1,70 +1,54 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { tournamentsApi } from '@/api/tournaments'
 import PublicNav from '@/components/PublicNav'
 import { Loader2, FolderOpen, ChevronRight } from 'lucide-react'
 import { useTitle } from '@/hooks/useTitle'
-
-type TournamentSummary = {
-  id: number; name: string; slug: string
-  description: string | null; status: string; created_at: string
-}
+import { usePublicTournaments } from '@/queries'
+import { Heading, Rule, Seal } from '@/components/ui'
 
 export default function PublicArchive() {
   useTitle('Tournament Archive')
-  const [tournaments, setTournaments] = useState<TournamentSummary[]>([])
-  const [loading,     setLoading]     = useState(true)
-
-  useEffect(() => {
-    tournamentsApi.listPublic()
-      .then(setTournaments)
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: tournaments = [], isPending } = usePublicTournaments()
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen">
       <PublicNav />
 
       <main className="max-w-3xl mx-auto px-6 py-10">
-        <div className="mb-8">
-          <h1 className="text-3xl font-black text-zinc-100 mb-1"
-            style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-            All Tournaments
-          </h1>
-          <p className="text-sm text-zinc-600">Browse past and active tournaments.</p>
+        <div className="mb-6 space-y-3">
+          <Heading size="xl">All tournaments</Heading>
+          <Rule />
+          <p className="text-sm text-zinc-500">Browse past and active tournaments.</p>
         </div>
 
-        {loading ? (
+        {isPending ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="w-6 h-6 text-zinc-600 animate-spin" />
           </div>
         ) : tournaments.length === 0 ? (
           <div className="text-center py-24 space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto">
-              <FolderOpen className="w-7 h-7 text-zinc-700" />
+            <div className="panel w-16 h-16 flex items-center justify-center mx-auto">
+              <FolderOpen className="w-7 h-7 text-zinc-600" />
             </div>
-            <p className="text-sm text-zinc-700">No tournaments yet.</p>
+            <p className="text-sm text-zinc-600">No tournaments yet.</p>
           </div>
         ) : (
           <div className="space-y-2">
             {tournaments.map(t => (
               <Link key={t.id} to={`/t/${t.slug}`}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors group">
+                className="panel flex items-center gap-4 p-4 hover:border-amber-700 transition-colors group">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-zinc-100 truncate">{t.name}</p>
-                    {t.status === 'archived' && (
-                      <span className="text-[10px] font-mono text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded flex-shrink-0">archived</span>
-                    )}
+                  <div className="flex items-center gap-2.5">
+                    <p className="font-display text-sm font-bold tracking-[0.06em] text-zinc-50 truncate">{t.name}</p>
+                    {t.status === 'archived' && <Seal tone="pending">Archived</Seal>}
                   </div>
                   {t.description && (
-                    <p className="text-xs text-zinc-500 mt-0.5 truncate">{t.description}</p>
+                    <p className="text-[13px] text-zinc-500 mt-0.5 truncate">{t.description}</p>
                   )}
-                  <p className="text-[10px] font-mono text-zinc-700 mt-1">
+                  <p className="text-[11px] font-mono text-zinc-600 mt-1">
                     {new Date(t.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition-colors flex-shrink-0" />
+                <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-amber-400 transition-colors flex-shrink-0" />
               </Link>
             ))}
           </div>

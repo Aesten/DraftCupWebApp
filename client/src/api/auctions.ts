@@ -1,25 +1,7 @@
 import { api } from './client'
+import type { Auction, Captain } from '@shared/types'
 
-export interface Captain {
-  id:           number
-  auction_id:   number
-  display_name: string
-  team_name:    string | null
-  token:        string | null
-  budget:       number
-  class:        'inf' | 'arc' | 'cav' | null
-}
-
-export interface Auction {
-  id:                  number
-  tournament_id:       number
-  name:                string
-  min_increment:       number
-  bid_cooldown_seconds: number
-  is_public:           number
-  status:              'setup' | 'ready' | 'finished'
-  created_at:          string
-}
+export type { Auction, Captain }
 
 export interface AuctionResultPlayer {
   id:          number

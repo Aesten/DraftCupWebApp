@@ -1,17 +1,18 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
-import { tournamentsApi, type PublicTournamentOverview, type PublicDivision, type PublicMatchup, type PublicTeam } from '@/api/tournaments'
+import { type PublicDivision, type PublicMatchup, type PublicTeam } from '@/api/tournaments'
 import { useTitle } from '@/hooks/useTitle'
+import { usePublicTournament, usePublicStats } from '@/queries'
 import type { Captain } from '@/api/auctions'
 import type { Match } from '@/api/brackets'
 import PublicNav from '@/components/PublicNav'
 import GroupStageView from '@/components/tournament/GroupStageView'
-import BracketView from '@/components/tournament/BracketView'
 import { KnockoutScoreRow } from '@/components/tournament/division/KnockoutSection'
 import { cn, imgSrc } from '@/lib/utils'
 import { parseClasses, CLASS_ICON, CLASS_COLOR, CLASSES } from '@/components/tournament/shared'
-import { Loader2, Trophy, Copy, Check, BarChart2 } from 'lucide-react'
-import StatsTable, { type StatRow, type StatsConfig } from '@/components/tournament/StatsTable'
+import { Loader2, Trophy, Crown, Copy, Check, BarChart2 } from 'lucide-react'
+import StatsTable from '@/components/tournament/StatsTable'
+import { PanelHead } from '@/components/ui'
 
 import Aserai   from '@/assets/factions/Aserai.webp'
 import Battania from '@/assets/factions/Battania.webp'
@@ -22,16 +23,19 @@ import Vlandia  from '@/assets/factions/Vlandia.webp'
 
 const FACTION_ICONS: Record<string, string> = { Aserai, Battania, Empire, Khuzait, Sturgia, Vlandia }
 
+const TAB_CLS = 'flex items-center gap-1.5 px-3.5 py-2.5 -mb-px font-display text-[11px] font-bold uppercase tracking-[0.12em] border-b-2 transition-colors whitespace-nowrap'
+const tabCls = (active: boolean) => cn(TAB_CLS, active ? 'border-amber-500 text-amber-400' : 'border-transparent text-zinc-500 hover:text-zinc-300')
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
 function FactionIcon({ name, size = 'sm' }: { name: string | null | undefined; size?: 'sm' | 'lg' }) {
   const src = name ? FACTION_ICONS[name] : undefined
   const cls = size === 'lg'
-    ? 'w-10 h-10 rounded-full object-cover border-2 border-white/20 flex-shrink-0 drop-shadow-lg'
+    ? 'w-10 h-10 rounded-full object-cover border border-amber-700 shadow-[0_0_0_2px_#0c0b09] flex-shrink-0'
     : 'w-6 h-6 rounded-full object-cover border border-zinc-700 flex-shrink-0'
   const placeholder = size === 'lg'
-    ? 'w-10 h-10 rounded-full bg-white/10 border-2 border-white/10 flex items-center justify-center flex-shrink-0'
+    ? 'w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center flex-shrink-0'
     : 'w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center flex-shrink-0'
 
   if (!src) return (
@@ -122,43 +126,37 @@ function MatchupCard({ label, matchup }: {
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+    <div className={cn('panel overflow-hidden', label === 'Finals' && rolled && 'border-amber-700')}>
       {/* Image area — 1920×855 native aspect ratio */}
       <div className="relative overflow-hidden" style={{ aspectRatio: '1920/855' }}>
         {matchup?.map_image
           ? <img src={imgSrc(matchup.map_image)} className="absolute inset-0 w-full h-full object-cover" alt="" />
-          : <div className="absolute inset-0 bg-zinc-800/60" />
+          : <div className="absolute inset-0 bg-zinc-800" />
         }
-        {/* Darkening vignette */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-black/60" />
+        {/* Shade so the labels read over the map */}
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/60 via-zinc-950/10 to-zinc-950/70" />
 
         {/* Round label — top left */}
         <div className="absolute top-1.5 left-2.5">
-          <span className="text-[10px] font-mono uppercase tracking-widest text-white/60">{label}</span>
+          <span className="font-display text-[9px] font-semibold uppercase tracking-[0.2em] text-zinc-300">{label}</span>
         </div>
 
         {/* Map name — top right (when rolled) */}
         {rolled && (
           <div className="absolute top-1.5 right-2.5">
-            <span className="text-[10px] font-black text-amber-400"
-              style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-              {matchup!.map_name}
-            </span>
+            <span className="font-display text-[10px] font-bold text-amber-400">{matchup!.map_name}</span>
           </div>
         )}
 
         {/* VS row — centered */}
         <div className="absolute inset-0 flex items-center justify-center gap-3">
           <FactionIcon name={matchup?.faction_a_name} size="lg" />
-          <span className="text-lg font-black text-white/70 tracking-widest"
-            style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-            VS
-          </span>
+          <span className="font-display text-sm font-bold text-zinc-100 tracking-[0.2em]">VS</span>
           <FactionIcon name={matchup?.faction_b_name} size="lg" />
         </div>
 
         {/* Command bar — overlaid at bottom */}
-        <div className="absolute bottom-0 inset-x-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-black/50">
+        <div className="absolute bottom-0 inset-x-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-zinc-950/75">
           <p className={cn('text-xs font-mono truncate flex-1 select-all', rolled ? 'text-zinc-300' : 'text-zinc-600')}>
             {command}
           </p>
@@ -189,7 +187,7 @@ const MATCHUP_SLOTS = [
 function MatchupsPanel({ matchups }: { matchups: PublicMatchup[] }) {
   return (
     <div className="flex flex-col gap-1.5 h-full py-1 justify-between">
-      <p className="text-[9px] font-mono uppercase tracking-widest text-zinc-600 flex-shrink-0 pb-0.5">Matchups</p>
+      <p className="font-display text-[9px] font-semibold uppercase tracking-[0.25em] text-zinc-600 flex-shrink-0 pb-0.5">Matchups</p>
       {MATCHUP_SLOTS.map(s => (
         <MatchupCard
           key={s.round}
@@ -197,6 +195,24 @@ function MatchupsPanel({ matchups }: { matchups: PublicMatchup[] }) {
           matchup={matchups.find(m => m.round === s.round)}
         />
       ))}
+    </div>
+  )
+}
+
+// ─── Division champion ────────────────────────────────────────────────────────
+
+function ChampionPanel({ winner }: { winner: { team_name: string; captain_name: string } | null }) {
+  if (!winner) return (
+    <div className="h-full flex items-center justify-center text-center px-2">
+      <p className="text-xs italic text-zinc-700">Champion crowned after the final</p>
+    </div>
+  )
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center gap-1.5 px-2">
+      <Crown className="w-7 h-7 text-amber-400" />
+      <p className="font-display text-[9px] font-semibold uppercase tracking-[0.25em] text-zinc-600">Division Champion</p>
+      <p className="font-display text-lg font-bold text-amber-300 leading-tight">{winner.team_name}</p>
+      <p className="text-xs text-zinc-500">Captained by {winner.captain_name}</p>
     </div>
   )
 }
@@ -209,10 +225,8 @@ function BracketBox({ title, children, className }: {
   className?: string
 }) {
   return (
-    <div className={cn('bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden', className)}>
-      <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-800">
-        <span className="text-xs font-mono uppercase tracking-widest text-zinc-500">{title}</span>
-      </div>
+    <div className={cn('panel flex flex-col overflow-hidden', className)}>
+      <PanelHead>{title}</PanelHead>
       <div className="flex-1 min-h-0 overflow-hidden">
         {children}
       </div>
@@ -239,13 +253,10 @@ function ClassCell({ classes, cls }: { classes: string | null; cls: typeof CLASS
 function TeamCard({ team }: { team: PublicTeam }) {
   const teamName = team.team_name ?? `${team.display_name}'s team`
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
+    <div className="panel overflow-hidden flex flex-col">
       {/* Team name */}
-      <div className="px-4 py-2.5 border-b border-zinc-800/60">
-        <p className="text-base font-black text-zinc-100 truncate"
-          style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-          {teamName}
-        </p>
+      <div className="panel-head px-4 py-2.5">
+        <p className="font-display text-sm font-bold tracking-[0.04em] text-zinc-50 truncate">{teamName}</p>
       </div>
 
       <div className="flex-1">
@@ -290,15 +301,22 @@ function TeamCard({ team }: { team: PublicTeam }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PublicProjectPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug = '' } = useParams<{ slug: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [data,     setData]     = useState<PublicTournamentOverview | null>(null)
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState(false)
-  const [tab,         setTab]         = useState(0)
-  const [innerTab,    setInnerTab]    = useState<'bracket' | 'teams' | 'stats'>('bracket')
-  const [statsCache,  setStatsCache]  = useState<Record<number, { rows: StatRow[]; config: StatsConfig | null } | null>>({})
+  const overview = usePublicTournament(slug)
+  const data     = overview.data ?? null
+  const loading  = overview.isPending
+  const error    = overview.isError
   const [sharedScale, setSharedScale] = useState(1)
+
+  // The URL is the tab state: ?div=<auction id>&tab=bracket|teams|stats.
+  const divParam = searchParams.get('div')
+  const tabParam = searchParams.get('tab')
+  const divIdx   = divParam && data ? data.divisions.findIndex(div => div.auction.id === Number(divParam)) : -1
+  const tab      = divIdx >= 0 ? divIdx : 0
+  const innerTab: 'bracket' | 'teams' | 'stats' = tabParam === 'teams' ? 'teams' : tabParam === 'stats' ? 'stats' : 'bracket'
+  const setParam = (key: string, value: string) =>
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.set(key, value); return p }, { replace: true })
   const finalsRightRef  = useRef<HTMLDivElement>(null)
   const finalsInnerRef  = useRef<HTMLDivElement>(null)
 
@@ -315,38 +333,9 @@ export default function PublicProjectPage() {
     return () => ro.disconnect()
   })
 
-  useEffect(() => {
-    if (!slug) return
-    tournamentsApi.getPublic(slug)
-      .then(d => { setData(d) })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false))
-  }, [slug])
-
-  // Sync tab state from URL params whenever params or loaded data change
-  useEffect(() => {
-    if (!data) return
-    const divParam = searchParams.get('div')
-    const tabParam = searchParams.get('tab')
-    if (divParam) {
-      const idx = data.divisions.findIndex(div => div.auction.id === Number(divParam))
-      setTab(idx >= 0 ? idx : 0)
-    } else {
-      setTab(0)
-    }
-    setInnerTab(tabParam === 'teams' ? 'teams' : tabParam === 'stats' ? 'stats' : 'bracket')
-  }, [data, searchParams])
-
-  // Fetch stats when stats tab is active for the current division
-  useEffect(() => {
-    if (!slug || !data || innerTab !== 'stats') return
-    const id = data.divisions[tab]?.auction.id
-    if (id === undefined || id in statsCache) return
-    fetch(`/api/tournaments/public/${slug}/stats/${id}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => setStatsCache(prev => ({ ...prev, [id]: d ?? null })))
-      .catch(() => setStatsCache(prev => ({ ...prev, [id]: null })))
-  }, [innerTab, tab, data, slug])
+  // Stats are fetched only once the stats tab is opened for a division, then cached.
+  const statsAuctionId = data?.divisions[tab]?.auction.id
+  const stats = usePublicStats(slug, statsAuctionId, innerTab === 'stats')
 
   if (loading) return (
     <div className="h-screen bg-zinc-950 flex items-center justify-center">
@@ -374,34 +363,28 @@ export default function PublicProjectPage() {
   const knockoutMatches = (activeDivision?.matches.filter(m => m.group_label === null) ?? []) as Match[]
 
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden">
       <PublicNav
         center={
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-700/40 bg-zinc-800/50">
-            <span className="text-sm font-black text-zinc-100" style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-              {tournament.name}
-            </span>
+          <div className="hidden md:flex items-center gap-3.5">
+            <span className="hairline-r h-px w-14" />
+            <span className="font-display text-lg font-bold uppercase tracking-[0.14em] text-zinc-50">{tournament.name}</span>
+            <span className="hairline-l h-px w-14" />
           </div>
         }
         extra={
-          <Link to="/archive" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-mono">
+          <Link to="/archive" className="text-[13px] text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap">
             All tournaments
           </Link>
         }
       />
 
       {/* ── Combined tab bar: division tabs | divider | view tabs ── */}
-      <div className="flex-shrink-0 border-b border-zinc-800/60 px-[5%] flex items-center gap-0.5">
+      <div className="flex-shrink-0 border-b border-zinc-800 px-[5%] flex items-center gap-0.5 overflow-x-auto">
         {divisions.map((d, i) => (
-          <button key={d.auction.id} onClick={() => {
-            setTab(i)
-            setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('div', String(d.auction.id)); return p }, { replace: true })
-          }}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap',
-              tab === i ? 'border-amber-500 text-amber-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'
-            )}>
-            {d.winner && <Trophy className="w-3 h-3" />}
+          <button key={d.auction.id} onClick={() => setParam('div', String(d.auction.id))}
+            className={tabCls(tab === i)}>
+            {d.winner ? <Trophy className="w-3 h-3" /> : <span className={cn('lozenge', tab !== i && 'bg-zinc-600')} />}
             {d.auction.name}
           </button>
         ))}
@@ -412,32 +395,26 @@ export default function PublicProjectPage() {
         )}
 
         {([['bracket', 'Brackets'], ['teams', 'Teams'], ['stats', 'Statistics']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => {
-            setInnerTab(id)
-            setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('tab', id); return p }, { replace: true })
-          }}
-            className={cn(
-              'px-3 py-2.5 text-xs font-semibold border-b-2 -mb-px transition-colors',
-              innerTab === id ? 'border-amber-500 text-amber-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'
-            )}>
+          <button key={id} onClick={() => setParam('tab', id)}
+            className={tabCls(innerTab === id)}>
             {label}
           </button>
         ))}
       </div>
 
       {/* ── Content ── */}
-      <div className="flex-1 min-h-0 px-[5%] py-3 flex flex-col">
+      <div className="flex-1 min-h-0 px-[5%] py-3 flex flex-col overflow-y-auto md:overflow-hidden">
 
         {!activeDivision && (
           <p className="text-sm text-zinc-700 italic text-center py-16">Nothing public yet.</p>
         )}
 
-        {/* Brackets tab */}
+        {/* Brackets tab: side by side on desktop, stacked on a phone */}
         {innerTab === 'bracket' && activeDivision && (
-          <div className="flex-1 min-h-0 flex gap-4">
+          <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4">
 
             {/* Equal-height bracket boxes */}
-            <div className="flex-1 min-w-0 flex flex-col gap-3">
+            <div className="flex-1 min-w-0 flex flex-col gap-3 [&>*]:min-h-56 md:[&>*]:min-h-0">
               {groupAMatches.length > 0 && (
                 <BracketBox title="Group A" className="flex-1 min-h-0">
                   <ScaleToFit onScale={setSharedScale}>
@@ -460,18 +437,15 @@ export default function PublicProjectPage() {
               )}
               {knockoutMatches.length > 0 && (
                 <BracketBox title="Finals" className="flex-1 min-h-0">
-                  <div className="grid gap-4 px-4 py-3 h-full" style={{ gridTemplateColumns: '40% 60%' }}>
-                    <div className="min-w-0 h-full overflow-hidden">
-                      <BracketView matches={knockoutMatches} captains={captains} fill />
-                    </div>
-                    <div ref={finalsRightRef} className="border-l border-zinc-800/60 pl-4 h-full overflow-hidden flex items-center min-w-0 flex-1">
+                  <div className="grid gap-4 px-4 py-3 h-full" style={{ gridTemplateColumns: '66% 34%' }}>
+                    <div ref={finalsRightRef} className="h-full overflow-hidden flex items-center min-w-0 flex-1">
                       <div ref={finalsInnerRef} style={{ zoom: sharedScale }} className="flex gap-2 p-3">
                       {[...new Set(knockoutMatches.map(m => m.round))].sort((a, b) => a - b).map(r => {
                         const label = r === Math.max(...knockoutMatches.map(m => m.round)) ? 'Final' : 'Semi-finals'
                         const rows = knockoutMatches.filter(m => m.round === r).sort((a, b) => a.match_order - b.match_order)
                         return (
                           <div key={r} className="flex-1 flex flex-col min-w-0">
-                            <p className="flex-shrink-0 text-[10px] font-mono uppercase tracking-widest text-zinc-600 text-center pb-1.5">{label}</p>
+                            <p className="flex-shrink-0 text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600 text-center pb-1.5">{label}</p>
                             <div className="flex-1 flex flex-col justify-evenly">
                               {rows.map(m => (
                                 <KnockoutScoreRow key={m.id} match={m} captains={captains} canManage={false} onSave={noop} showLabel={false} />
@@ -482,6 +456,12 @@ export default function PublicProjectPage() {
                       })}
                       </div>
                     </div>
+                    {/* The bracket graph repeats exactly what the score rows on the left already
+                        say, just as boxes-and-lines — this space is better spent on the thing
+                        those rows don't say: who actually won the division. */}
+                    <div className="border-l border-zinc-800/60 pl-4 h-full overflow-hidden">
+                      <ChampionPanel winner={activeDivision.winner} />
+                    </div>
                   </div>
                 </BracketBox>
               )}
@@ -490,8 +470,8 @@ export default function PublicProjectPage() {
               )}
             </div>
 
-            {/* Matchups panel — 20% width */}
-            <div className="w-1/5 flex-shrink-0">
+            {/* Matchups panel — 20% width on desktop, full width below */}
+            <div className="w-full md:w-1/5 flex-shrink-0">
               <MatchupsPanel matchups={divisionMatchups} />
             </div>
           </div>
@@ -499,9 +479,8 @@ export default function PublicProjectPage() {
 
         {/* Stats tab */}
         {innerTab === 'stats' && activeDivision && (() => {
-          const id    = activeDivision.auction.id
-          const entry = statsCache[id]
-          if (!(id in statsCache)) return (
+          const entry = stats.isError ? null : stats.data
+          if (stats.isPending) return (
             <div className="flex-1 flex items-center justify-center">
               <Loader2 className="w-5 h-5 animate-spin text-zinc-600" />
             </div>

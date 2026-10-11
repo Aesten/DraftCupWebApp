@@ -120,14 +120,14 @@ export default function CaptainSlot({ index, captain, canManage, isAuctioneer, s
             <input value={fillName} onChange={e => setFillName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
               placeholder="Name…"
-              className="flex-1 min-w-[8rem] px-2 py-1 rounded-lg bg-zinc-800/50 border border-zinc-800 text-sm text-zinc-200 placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/30 transition-colors" />
+              className="flex-1 min-w-[8rem] px-2 py-1 rounded-sm bg-zinc-950 border border-zinc-800 text-sm text-zinc-200 placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/30 transition-colors" />
             <input value={fillTeamName} onChange={e => setFillTeamName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
               placeholder="Team name…"
-              className="flex-1 min-w-[8rem] px-2 py-1 rounded-lg bg-zinc-800/50 border border-zinc-800 text-sm text-zinc-400 placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/30 transition-colors" />
+              className="flex-1 min-w-[8rem] px-2 py-1 rounded-sm bg-zinc-950 border border-zinc-800 text-sm text-zinc-400 placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/30 transition-colors" />
             <input value={fillBudget} onChange={e => setFillBudget(e.target.value)}
               type="number" step="0.1" min="0"
-              className="w-20 px-2 py-1 rounded-lg bg-zinc-800/50 border border-zinc-800 text-sm font-mono text-zinc-500 focus:outline-none focus:border-amber-500/30 transition-colors" />
+              className="w-20 px-2 py-1 rounded-sm bg-zinc-950 border border-zinc-800 text-sm font-mono text-zinc-500 focus:outline-none focus:border-amber-500/30 transition-colors" />
             <ClassPicker value={fillClass} onChange={setFillClass} />
             <button onClick={handleAdd} disabled={saving || !fillName.trim()}
               className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 transition-colors disabled:opacity-40">
@@ -152,14 +152,14 @@ export default function CaptainSlot({ index, captain, canManage, isAuctioneer, s
           <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus
             onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditing(false) }}
             placeholder="Display name"
-            className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-zinc-100 focus:outline-none" />
+            className="px-2 py-1 rounded-sm bg-zinc-950 border border-zinc-700 text-sm text-zinc-100 focus:outline-none" />
           <input value={editTeamName} onChange={e => setEditTeamName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditing(false) }}
             placeholder="Team name (e.g. Team A)"
-            className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-zinc-400 focus:outline-none" />
+            className="px-2 py-1 rounded-sm bg-zinc-950 border border-zinc-700 text-sm text-zinc-400 focus:outline-none" />
           <input value={editBudget} onChange={e => setEditBudget(e.target.value)}
             type="number" step="0.1" min="0"
-            className="w-20 px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-sm font-mono text-zinc-400 focus:outline-none" />
+            className="w-20 px-2 py-1 rounded-sm bg-zinc-950 border border-zinc-700 text-sm font-mono text-zinc-400 focus:outline-none" />
         </div>
         <div className="flex items-center gap-1 px-2 border-l border-zinc-800/50 flex-shrink-0">
           <button onClick={handleSaveEdit} disabled={saving}
@@ -183,8 +183,8 @@ export default function CaptainSlot({ index, captain, canManage, isAuctioneer, s
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 px-2 pt-2 pb-1.5">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-zinc-200 truncate">{captain.display_name}</p>
-            <p className="text-xs text-zinc-500 truncate">
+            <p className="text-sm font-semibold text-amber-300 truncate">{captain.display_name}</p>
+            <p className="font-display text-xs font-bold tracking-[0.04em] text-zinc-100 truncate">
               {captain.team_name ?? `${captain.display_name}'s team`}
             </p>
             <p className="text-xs font-mono text-zinc-600">{captain.budget}</p>
@@ -227,13 +227,13 @@ export default function CaptainSlot({ index, captain, canManage, isAuctioneer, s
           {canManage && (
             <div className="ml-auto flex items-center gap-1">
               <button onClick={handleGenToken} disabled={tokenBusy}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs transition-colors disabled:opacity-40">
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-400 font-display text-[9px] font-bold uppercase tracking-[0.1em] transition-colors disabled:opacity-40">
                 {tokenBusy ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <RefreshCw className="w-2.5 h-2.5" />}
                 {captain.token ? 'Regen' : 'Gen'}
               </button>
               {captain.token && (
                 <button onClick={handleRevokeToken} disabled={tokenBusy}
-                  className="px-1.5 py-0.5 rounded text-zinc-600 hover:text-red-400 hover:bg-red-400/10 text-xs transition-colors disabled:opacity-40">
+                  className="px-1.5 py-0.5 rounded-sm text-zinc-600 hover:text-red-400 hover:bg-red-600/10 font-display text-[9px] font-bold uppercase tracking-[0.1em] transition-colors disabled:opacity-40">
                   Revoke
                 </button>
               )}

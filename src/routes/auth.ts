@@ -2,8 +2,9 @@ import { Hono } from 'hono'
 import { queryOne, execute } from '../db/database'
 import { issueAuthCookie, clearAuthCookie, requireAuth } from '../middleware/auth'
 import type { Captain, Tournament } from '../types'
-import type { AuthEnv, } from '../middleware/auth'
+import type { AuthEnv } from '../middleware/auth'
 import type { HostJwtPayload, CaptainJwtPayload } from '../types'
+import { canManageTournament } from '../services/access'
 
 const auth = new Hono<AuthEnv>()
 
@@ -173,8 +174,7 @@ auth.post('/tokens/auctioneer/:slug/generate', requireAuth('admin', 'host'), (c)
   const slug = c.req.param('slug')
   const tournament = queryOne<{ id: number }>('SELECT id FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (auth.role === 'host' && (auth as HostJwtPayload).tournamentId !== tournament.id)
-    return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   const token = generateToken()
   execute('UPDATE tournaments SET auctioneer_token = ? WHERE id = ?', [token, tournament.id])
   return c.json({ ok: true, token })
@@ -186,8 +186,7 @@ auth.post('/tokens/auctioneer/:slug/revoke', requireAuth('admin', 'host'), (c) =
   const slug = c.req.param('slug')
   const tournament = queryOne<{ id: number }>('SELECT id FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (auth.role === 'host' && (auth as HostJwtPayload).tournamentId !== tournament.id)
-    return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   execute('UPDATE tournaments SET auctioneer_token = NULL WHERE id = ?', [tournament.id])
   return c.json({ ok: true })
 })
@@ -201,8 +200,7 @@ auth.post('/tokens/captain/:id/generate', requireAuth('admin', 'host'), (c) => {
     [captainId]
   )
   if (!row) return c.json({ error: 'Captain not found' }, 404)
-  if (auth.role === 'host' && (auth as HostJwtPayload).tournamentId !== row.tournament_id)
-    return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, row.tournament_id)) return c.json({ error: 'Forbidden' }, 403)
   const token = generateToken()
   execute('UPDATE captains SET token = ? WHERE id = ?', [token, captainId])
   return c.json({ ok: true, token })
@@ -217,8 +215,7 @@ auth.post('/tokens/captain/:id/revoke', requireAuth('admin', 'host'), (c) => {
     [captainId]
   )
   if (!row) return c.json({ error: 'Captain not found' }, 404)
-  if (auth.role === 'host' && (auth as HostJwtPayload).tournamentId !== row.tournament_id)
-    return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, row.tournament_id)) return c.json({ error: 'Forbidden' }, 403)
   execute('UPDATE captains SET token = NULL WHERE id = ?', [captainId])
   return c.json({ ok: true })
 })

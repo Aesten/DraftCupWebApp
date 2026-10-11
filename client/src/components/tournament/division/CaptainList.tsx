@@ -2,6 +2,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { type Captain } from '@/api/auctions'
 import { type ClassKey } from '@/components/tournament/shared'
 import CaptainSlot from './CaptainSlot'
+import { Label } from '@/components/ui'
 
 const MAX_CAPTAINS = 8
 
@@ -24,9 +25,7 @@ export default function CaptainList({ captains, canManage, shownTokens, onToggle
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-          Captains — {captains.length}/{MAX_CAPTAINS}
-        </p>
+        <Label>Captains <span className="font-mono text-zinc-600 tracking-normal">{captains.length}/{MAX_CAPTAINS}</span></Label>
         {captainsWithToken.length > 0 && canManage && (
           <button onClick={onToggleAllTokens}
             className="text-zinc-600 hover:text-zinc-300 transition-colors p-0.5"
@@ -35,7 +34,7 @@ export default function CaptainList({ captains, canManage, shownTokens, onToggle
           </button>
         )}
       </div>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+      <div className="panel overflow-hidden">
         {slots.map((captain, i) => (
           <CaptainSlot
             key={captain?.id ?? `empty-${i}`}

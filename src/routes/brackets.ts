@@ -1,27 +1,16 @@
 import { Hono } from 'hono'
 import { queryAll, queryOne, execute, transaction } from '../db/database'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
-import type { Bracket, Match, GameMap, Faction, Matchup, Tournament, PickBanSession, Auction, Captain, CaptainJwtPayload, HostJwtPayload } from '../types'
-import { broadcastPickBanUpdate } from '../ws/pickBanRoom'
+import type { Bracket, Match, GameMap, Faction, Matchup, Tournament, PickBanSession, Auction, Captain, CaptainJwtPayload } from '../types'
+import { pickBanRoom } from '../ws/rooms'
+import { shuffle } from '../lib/shuffle'
+import { canAccessTournament, canManageTournament } from '../services/access'
+
+const broadcastPickBanUpdate = (sessionId: number) => pickBanRoom.broadcast(sessionId)
 
 const brackets = new Hono<AuthEnv>()
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
-
-function hostOwns(tournament: Tournament, auth: AuthEnv['Variables']['auth']): boolean {
-  if (auth.role === 'admin') return true
-  if (auth.role === 'host') return tournament.id === (auth as HostJwtPayload).tournamentId
-  return false
-}
 
 function getTournamentForBracket(bracketId: number): Tournament | null {
   return queryOne<Tournament>(
@@ -37,14 +26,7 @@ brackets.get('/tournament/:slug', requireAuth('admin', 'host', 'auctioneer', 'ca
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [c.req.param('slug')])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
 
-  if (auth.role === 'host'       && !hostOwns(tournament, auth))         return c.json({ error: 'Forbidden' }, 403)
-  if (auth.role === 'auctioneer' && tournament.id !== auth.projectId)    return c.json({ error: 'Forbidden' }, 403)
-  if (auth.role === 'captain') {
-    const row = queryOne<{ tournament_id: number }>(
-      'SELECT tournament_id FROM auctions WHERE id = ?', [(auth as CaptainJwtPayload).auctionId]
-    )
-    if (row?.tournament_id !== tournament.id) return c.json({ error: 'Forbidden' }, 403)
-  }
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   return c.json(queryAll<Bracket>(
     'SELECT * FROM brackets WHERE tournament_id = ? ORDER BY created_at ASC', [tournament.id]
@@ -91,7 +73,7 @@ brackets.post('/tournament/:slug', requireAuth('admin', 'host'), async (c) => {
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [c.req.param('slug')])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
 
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<{ name: string; auction_id?: number }>()
 
@@ -118,7 +100,7 @@ brackets.patch('/:id', requireAuth('admin', 'host'), async (c) => {
   const bracket = queryOne<Bracket>('SELECT * FROM brackets WHERE id = ?', [id])
   if (!bracket) return c.json({ error: 'Bracket not found' }, 404)
   const tournament = getTournamentForBracket(id)!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<{ name?: string; auction_id?: number | null }>()
   if (data.name       !== undefined) execute('UPDATE brackets SET name = ? WHERE id = ?',       [data.name, id])
@@ -132,7 +114,7 @@ brackets.post('/:id/publish', requireAuth('admin', 'host'), (c) => {
   const bracket = queryOne<Bracket>('SELECT * FROM brackets WHERE id = ?', [id])
   if (!bracket) return c.json({ error: 'Bracket not found' }, 404)
   const tournament = getTournamentForBracket(id)!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const matchCount = queryOne<{ count: number }>(
     'SELECT COUNT(*) as count FROM matches WHERE bracket_id = ?', [id]
@@ -148,7 +130,7 @@ brackets.post('/:id/unpublish', requireAuth('admin', 'host'), (c) => {
   const bracket = queryOne<Bracket>('SELECT * FROM brackets WHERE id = ?', [id])
   if (!bracket) return c.json({ error: 'Bracket not found' }, 404)
   const tournament = getTournamentForBracket(id)!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   execute('UPDATE brackets SET is_public = 0 WHERE id = ?', [id])
   return c.json({ ok: true })
 })
@@ -159,7 +141,7 @@ brackets.delete('/:id', requireAuth('admin', 'host'), (c) => {
   const bracket = queryOne<Bracket>('SELECT * FROM brackets WHERE id = ?', [id])
   if (!bracket) return c.json({ error: 'Bracket not found' }, 404)
   const tournament = getTournamentForBracket(id)!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const hasResults = queryOne<{ count: number }>(
     `SELECT COUNT(*) as count FROM matches WHERE bracket_id = ? AND status = 'played'`, [id]
@@ -177,7 +159,7 @@ brackets.post('/:id/generate', requireAuth('admin', 'host'), async (c) => {
   const bracket = queryOne<Bracket>('SELECT * FROM brackets WHERE id = ?', [id])
   if (!bracket) return c.json({ error: 'Bracket not found' }, 404)
   const tournament = getTournamentForBracket(id)!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const existing = queryOne<{ count: number }>(
     'SELECT COUNT(*) as count FROM matches WHERE bracket_id = ?', [id]
@@ -294,9 +276,12 @@ brackets.post('/:id/generate', requireAuth('admin', 'host'), async (c) => {
 // ─── Bracket reset (admin only) ───────────────────────────────────────────────
 
 brackets.post('/:id/reset', requireAuth('admin', 'host'), (c) => {
+  const auth    = c.get('auth')
   const id      = Number(c.req.param('id'))
   const bracket = queryOne<Bracket>('SELECT * FROM brackets WHERE id = ?', [id])
   if (!bracket) return c.json({ error: 'Bracket not found' }, 404)
+  const tournament = getTournamentForBracket(id)!
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   transaction(() => {
     execute('DELETE FROM pick_ban_sessions WHERE match_id IN (SELECT id FROM matches WHERE bracket_id = ?)', [id])
@@ -316,7 +301,7 @@ brackets.patch('/matches/:matchId/participants', requireAuth('admin', 'host'), a
   const match   = queryOne<Match>('SELECT * FROM matches WHERE id = ?', [matchId])
   if (!match) return c.json({ error: 'Match not found' }, 404)
   const tournament = getTournamentForBracket(match.bracket_id)!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<{ captain_a_id?: number | null; captain_b_id?: number | null }>()
   const fields: string[] = []; const vals: unknown[] = []
@@ -341,7 +326,7 @@ brackets.patch('/matches/:matchId/result', requireAuth('admin', 'host'), async (
   if (!match) return c.json({ error: 'Match not found' }, 404)
 
   const tournament = getTournamentForBracket(match.bracket_id)!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data     = await c.req.json<{ score_a: number; score_b: number }>()
   const winnerId = data.score_a > data.score_b ? match.captain_a_id
@@ -469,14 +454,7 @@ brackets.get('/tournament/:slug/matchups', requireAuth('admin', 'host', 'auction
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [c.req.param('slug')])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
 
-  if (auth.role === 'host'       && !hostOwns(tournament, auth))         return c.json({ error: 'Forbidden' }, 403)
-  if (auth.role === 'auctioneer' && tournament.id !== auth.projectId)    return c.json({ error: 'Forbidden' }, 403)
-  if (auth.role === 'captain') {
-    const row = queryOne<{ tournament_id: number }>(
-      'SELECT tournament_id FROM auctions WHERE id = ?', [(auth as CaptainJwtPayload).auctionId]
-    )
-    if (row?.tournament_id !== tournament.id) return c.json({ error: 'Forbidden' }, 403)
-  }
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   return c.json(queryAll(
     `SELECT mu.*, mp.name as map_name, mp.image_path as map_image,
@@ -495,7 +473,7 @@ brackets.post('/tournament/:slug/matchups/roll', requireAuth('admin', 'host'), a
   const auth       = c.get('auth')
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [c.req.param('slug')])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const { round, label, excluded_map_ids = [] } =
     await c.req.json<{ round: number; label?: string; excluded_map_ids?: number[] }>()
@@ -554,7 +532,7 @@ brackets.post('/tournament/:slug/matchups/manual', requireAuth('admin', 'host'),
   const auth       = c.get('auth')
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [c.req.param('slug')])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const { round, map_id, faction_a_id, faction_b_id, label } =
     await c.req.json<{ round: number; map_id: number; faction_a_id: number; faction_b_id: number; label?: string }>()
@@ -597,7 +575,7 @@ brackets.post('/matchups/:id/publish', requireAuth('admin', 'host'), (c) => {
   const matchup = queryOne<Matchup>('SELECT * FROM matchups WHERE id = ?', [id])
   if (!matchup) return c.json({ error: 'Matchup not found' }, 404)
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE id = ?', [matchup.tournament_id])!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   if (!matchup.map_id) return c.json({ error: 'Matchup has no map assigned yet' }, 400)
   execute('UPDATE matchups SET is_public = 1 WHERE id = ?', [id])
   return c.json({ ok: true })
@@ -609,7 +587,7 @@ brackets.post('/matchups/:id/unpublish', requireAuth('admin', 'host'), (c) => {
   const matchup = queryOne<Matchup>('SELECT * FROM matchups WHERE id = ?', [id])
   if (!matchup) return c.json({ error: 'Matchup not found' }, 404)
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE id = ?', [matchup.tournament_id])!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   execute('UPDATE matchups SET is_public = 0 WHERE id = ?', [id])
   return c.json({ ok: true })
 })
@@ -620,7 +598,7 @@ brackets.patch('/matchups/:id', requireAuth('admin', 'host'), async (c) => {
   const matchup = queryOne<Matchup>('SELECT * FROM matchups WHERE id = ?', [id])
   if (!matchup) return c.json({ error: 'Matchup not found' }, 404)
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE id = ?', [matchup.tournament_id])!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<{ map_id?: number | null; faction_a_id?: number | null; faction_b_id?: number | null; label?: string }>()
   const fields: string[] = []; const vals: unknown[] = []
@@ -696,7 +674,7 @@ brackets.post('/matches/:matchId/pickban', requireAuth('admin', 'host'), async (
   }
 
   const tournament = getTournamentForBracket(match.bracket_id)!
-  if (!hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   // Accept optional override; otherwise use tournament's finals_map_pool
   const body = await c.req.json<{ map_pool?: number[] }>().catch(() => ({} as { map_pool?: number[] }))
@@ -757,7 +735,7 @@ brackets.delete('/pickban/:id', requireAuth('admin', 'host'), (c) => {
   const session = queryOne<PickBanSession>('SELECT * FROM pick_ban_sessions WHERE id = ?', [id])
   if (!session) return c.json({ error: 'Session not found' }, 404)
   const tournament = getTournamentForBracket(session.bracket_id)
-  if (!tournament || !hostOwns(tournament, auth)) return c.json({ error: 'Forbidden' }, 403)
+  if (!tournament || !canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   execute('UPDATE matches SET matchup_id = NULL WHERE id = ?', [session.match_id])
   execute('DELETE FROM pick_ban_sessions WHERE id = ?', [id])
   return c.json({ ok: true })

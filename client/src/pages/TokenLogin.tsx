@@ -5,6 +5,7 @@ import { authApi } from '@/api/auth'
 import { useAuth } from '@/context/AuthContext'
 import { Loader2, AlertCircle } from 'lucide-react'
 import logo from '@/assets/logos/bdc_logo_nobg.png'
+import { Rule } from '@/components/ui'
 
 export default function TokenLogin() {
   useTitle('Join')
@@ -41,8 +42,9 @@ export default function TokenLogin() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-6">
-      <img src={logo} alt="BDC" className="h-14 w-auto opacity-80" />
+    <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-4">
+      <img src={logo} alt="BDC" className="h-14 w-auto" />
+      <Rule className="w-64">{error ? 'Sign in failed' : 'Signing in'}</Rule>
       {error ? (
         <div className="flex items-center gap-2 text-sm text-red-400">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -51,7 +53,7 @@ export default function TokenLogin() {
       ) : (
         <div className="flex items-center gap-2 text-sm text-zinc-500">
           <Loader2 className="w-4 h-4 animate-spin" />
-          Signing in…
+          One moment…
         </div>
       )}
     </div>

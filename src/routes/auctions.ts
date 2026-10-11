@@ -1,34 +1,10 @@
 import { Hono } from 'hono'
 import { queryAll, queryOne, execute } from '../db/database'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
-import type { Auction, Captain, Tournament, HostJwtPayload, CaptainJwtPayload, AuctioneerJwtPayload } from '../types'
-
-function captainInTournament(auth: CaptainJwtPayload, tournament: Tournament): boolean {
-  const row = queryOne<{ tournament_id: number }>(
-    'SELECT tournament_id FROM auctions WHERE id = ?', [auth.auctionId]
-  )
-  return row?.tournament_id === tournament.id
-}
+import type { Auction, Captain, Tournament, CaptainJwtPayload } from '../types'
+import { canAccessTournament, tournamentOfAuction as getTournamentForAuction } from '../services/access'
 
 const auctions = new Hono<AuthEnv>()
-
-function canAccessAuction(
-  auth: AuthEnv['Variables']['auth'],
-  tournament: Tournament
-): boolean {
-  if (auth.role === 'admin') return true
-  if (auth.role === 'host') return tournament.id === (auth as HostJwtPayload).tournamentId
-  if (auth.role === 'auctioneer') return tournament.id === (auth as AuctioneerJwtPayload).projectId
-  if (auth.role === 'captain') return captainInTournament(auth as CaptainJwtPayload, tournament)
-  return false
-}
-
-function getTournamentForAuction(auctionId: number): Tournament | null {
-  return queryOne<Tournament>(
-    `SELECT t.* FROM tournaments t JOIN auctions a ON a.tournament_id = t.id WHERE a.id = ?`,
-    [auctionId]
-  )
-}
 
 // ─── List Auctions for a Tournament ───────────────────────────────────────────
 
@@ -37,7 +13,7 @@ auctions.get('/tournament/:slug', requireAuth('admin', 'host', 'auctioneer', 'ca
   const slug = c.req.param('slug')
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   return c.json(queryAll<Auction>(
     'SELECT * FROM auctions WHERE tournament_id = ? ORDER BY created_at ASC', [tournament.id]
   ))
@@ -51,7 +27,7 @@ auctions.get('/:id', requireAuth('admin', 'host', 'auctioneer'), (c) => {
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [id])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = getTournamentForAuction(id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   const captains = queryAll<Captain>('SELECT * FROM captains WHERE auction_id = ? ORDER BY id ASC', [id])
   return c.json({ ...auction, captains })
 })
@@ -63,7 +39,7 @@ auctions.post('/tournament/:slug', requireAuth('admin', 'host'), async (c) => {
   const slug = c.req.param('slug')
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<{
     name: string
@@ -97,7 +73,7 @@ auctions.patch('/:id', requireAuth('admin', 'host'), async (c) => {
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [id])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = getTournamentForAuction(id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   if (auction.status !== 'setup')
     return c.json({ error: 'Cannot edit an auction that has already started' }, 409)
 
@@ -123,7 +99,7 @@ auctions.post('/:id/ready', requireAuth('admin', 'host'), (c) => {
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [id])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = getTournamentForAuction(id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   if (auction.status !== 'setup') return c.json({ error: 'Auction is already ready or finished' }, 409)
 
   const captainCount = queryOne<{ count: number }>('SELECT COUNT(*) as count FROM captains WHERE auction_id = ?', [id])
@@ -150,7 +126,7 @@ auctions.post('/:id/unready', requireAuth('admin', 'host'), (c) => {
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [id])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = getTournamentForAuction(id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   if (auction.status !== 'ready') return c.json({ error: 'Auction is not in ready state' }, 409)
   execute('UPDATE auctions SET status = ? WHERE id = ?', ['setup', id])
   return c.json({ ok: true, status: 'setup' })
@@ -164,7 +140,7 @@ auctions.delete('/:id', requireAuth('admin', 'host'), (c) => {
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [id])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = getTournamentForAuction(id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   if (auction.status !== 'setup')
     return c.json({ error: 'Cannot delete an auction that has already started' }, 409)
   execute('DELETE FROM auctions WHERE id = ?', [id])
@@ -210,7 +186,7 @@ auctions.get('/:id/results', requireAuth('admin', 'host', 'auctioneer'), (c) => 
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [id])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = getTournamentForAuction(id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const captains = queryAll<Captain>('SELECT * FROM captains WHERE auction_id = ? ORDER BY id ASC', [id])
   const session = queryOne<{ id: number }>(
@@ -237,7 +213,7 @@ auctions.get('/:id/captains', requireAuth('admin', 'host', 'auctioneer', 'captai
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [id])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = getTournamentForAuction(id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   return c.json(queryAll<Captain>('SELECT * FROM captains WHERE auction_id = ? ORDER BY id ASC', [id]))
 })
 
@@ -249,7 +225,7 @@ auctions.post('/:id/captains', requireAuth('admin', 'host'), async (c) => {
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [id])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = getTournamentForAuction(id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   if (auction.status !== 'setup')
     return c.json({ error: 'Cannot add captains after auction has started' }, 409)
 
@@ -273,7 +249,7 @@ auctions.patch('/captains/:captainId', requireAuth('admin', 'host'), async (c) =
   if (!captain) return c.json({ error: 'Captain not found' }, 404)
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [captain.auction_id])!
   const tournament = getTournamentForAuction(auction.id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<{ display_name?: string; team_name?: string | null; budget?: number; class?: string | null }>()
   execute(
@@ -313,7 +289,7 @@ auctions.delete('/captains/:captainId', requireAuth('admin', 'host'), (c) => {
   if (!captain) return c.json({ error: 'Captain not found' }, 404)
   const auction = queryOne<Auction>('SELECT * FROM auctions WHERE id = ?', [captain.auction_id])!
   const tournament = getTournamentForAuction(auction.id)!
-  if (!canAccessAuction(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   if (auction.status !== 'setup')
     return c.json({ error: 'Cannot remove captains after auction has started' }, 409)
   execute('DELETE FROM captains WHERE id = ?', [captainId])

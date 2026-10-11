@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Loader2, Check, X, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { auctionsApi, type AuctionResultTeam } from '@/api/auctions'
+import { auctionsApi } from '@/api/auctions'
 import { useToast } from '@/context/ToastContext'
+import { Button, Label, inputSmCls } from '@/components/ui'
+import { qk, useInvalidate, useResults, useAvailablePlayers } from '@/queries'
 
 export default function AuctionResultsModal({ auctionId, auctionName, canManage, playersPerTeam, onClose, onAuctionChange }: {
   auctionId:       number
@@ -13,32 +15,24 @@ export default function AuctionResultsModal({ auctionId, auctionName, canManage,
   onAuctionChange: () => void
 }) {
   const { toast } = useToast()
-  const [teams,          setTeams]          = useState<AuctionResultTeam[]>([])
-  const [loading,        setLoading]        = useState(true)
+  const invalidate = useInvalidate()
   const [editMode,       setEditMode]       = useState(false)
-  const [availPlayers,   setAvailPlayers]   = useState<{ id: number; name: string; classes: string }[]>([])
   const [addTarget,      setAddTarget]      = useState<{ captainId: number; playerId: number | null; price: string } | null>(null)
   const [busy,           setBusy]           = useState(false)
   const [confirm,        setConfirm]        = useState<'reopen' | 'wipe' | null>(null)
 
-  function reload() {
-    auctionsApi.getResults(auctionId).then(r => setTeams(r.teams))
-  }
+  const resultsQ = useResults(auctionId)
+  const availQ   = useAvailablePlayers(auctionId, editMode)
+  const teams        = resultsQ.data ?? []
+  const availPlayers = availQ.data ?? []
+  const loading      = resultsQ.isPending
 
-  useEffect(() => {
-    auctionsApi.getResults(auctionId)
-      .then(r => setTeams(r.teams))
-      .finally(() => setLoading(false))
-  }, [auctionId])
-
-  useEffect(() => {
-    if (editMode) auctionsApi.getAvailablePlayers(auctionId).then(setAvailPlayers)
-  }, [editMode, auctionId])
+  // Roster edits change both the results and which players are still free.
+  const refreshRosters = () => invalidate(qk.results(auctionId), qk.availablePlayers(auctionId))
 
   async function removePurchase(purchaseId: number) {
     await auctionsApi.removePurchase(auctionId, purchaseId)
-    reload()
-    if (editMode) auctionsApi.getAvailablePlayers(auctionId).then(setAvailPlayers)
+    await refreshRosters()
   }
 
   async function addPurchase() {
@@ -51,8 +45,7 @@ export default function AuctionResultsModal({ auctionId, auctionName, canManage,
         price:      Number(addTarget.price) || 0,
       })
       setAddTarget(null)
-      reload()
-      auctionsApi.getAvailablePlayers(auctionId).then(setAvailPlayers)
+      await refreshRosters()
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : 'Failed', 'error')
     } finally { setBusy(false) }
@@ -92,32 +85,25 @@ export default function AuctionResultsModal({ auctionId, auctionName, canManage,
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="panel border-zinc-700 w-full max-w-4xl max-h-[85vh] flex flex-col shadow-[0_24px_48px_rgba(0,0,0,0.6)]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800 flex-shrink-0">
+        <div className="panel-head flex items-center justify-between px-5 py-3 flex-shrink-0">
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">Auction Results</p>
-            <h2 className="text-base font-bold text-zinc-100">{auctionName}</h2>
+            <Label>Auction results</Label>
+            <h2 className="font-display text-base font-bold tracking-[0.04em] text-zinc-50">{auctionName}</h2>
           </div>
           <div className="flex items-center gap-2">
             {!loading && teams.length > 0 && (
-              <button onClick={exportNames} title="Export names"
-                className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors">
-                <Download className="w-4 h-4" />
-              </button>
+              <Button size="sm" variant="ghost" onClick={exportNames} title="Export names" icon={<Download className="w-4 h-4" />} aria-label="Export names" />
             )}
             {canManage && !confirm && (
-              <button onClick={() => setEditMode(e => !e)}
-                className={cn('text-xs font-mono px-2.5 py-1 rounded-lg border transition-colors',
-                  editMode
-                    ? 'border-amber-500/40 text-amber-400 bg-amber-500/10'
-                    : 'border-zinc-700 text-zinc-500 hover:text-zinc-300')}>
+              <Button size="sm" variant={editMode ? 'gilt-outline' : 'secondary'} onClick={() => setEditMode(e => !e)}>
                 {editMode ? 'Done editing' : 'Edit rosters'}
-              </button>
+              </Button>
             )}
-            <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors">
+            <button onClick={onClose} className="p-1 rounded-sm text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 transition-colors" aria-label="Close">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -132,14 +118,14 @@ export default function AuctionResultsModal({ auctionId, auctionName, canManage,
           ) : (
             <div className="grid grid-cols-2 gap-4">
               {teams.map(({ captain, players }) => (
-                <div key={captain.id} className="bg-zinc-950/60 border border-zinc-800 rounded-xl overflow-hidden">
+                <div key={captain.id} className="bg-zinc-950 border border-zinc-800 rounded-sm overflow-hidden">
                   {/* Team header */}
-                  <div className="px-4 py-3 border-b border-zinc-800/60 flex items-center gap-2">
+                  <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-zinc-100 truncate">
+                      <p className="font-display text-xs font-bold tracking-[0.04em] text-zinc-50 truncate">
                         {captain.team_name ?? `${captain.display_name}'s team`}
                       </p>
-                      <p className="text-xs text-zinc-500 truncate">{captain.display_name}</p>
+                      <p className="text-xs text-amber-300 truncate">{captain.display_name}</p>
                     </div>
                     <span className={cn('text-xs font-mono flex-shrink-0',
                       players.length < playersPerTeam ? 'text-red-500' : 'text-zinc-600')}>
@@ -170,7 +156,7 @@ export default function AuctionResultsModal({ auctionId, auctionName, canManage,
                         <select
                           value={addTarget.playerId ?? ''}
                           onChange={e => setAddTarget(t => t && ({ ...t, playerId: Number(e.target.value) || null }))}
-                          className="flex-1 text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-amber-500/50">
+                          className={cn(inputSmCls, 'flex-1 text-xs px-2 py-1')}>
                           <option value="">Select player…</option>
                           {availPlayers.map(p => (
                             <option key={p.id} value={p.id}>{p.name}{p.classes ? ` (${p.classes})` : ''}</option>
@@ -180,7 +166,7 @@ export default function AuctionResultsModal({ auctionId, auctionName, canManage,
                           type="number" min="0" step="0.1" placeholder="0.0"
                           value={addTarget.price}
                           onChange={e => setAddTarget(t => t && ({ ...t, price: e.target.value }))}
-                          className="w-14 text-xs text-center bg-zinc-800 border border-zinc-700 rounded px-1 py-1 text-zinc-200 focus:outline-none focus:border-amber-500/50 [appearance:textfield]" />
+                          className={cn(inputSmCls, 'w-14 text-xs text-center px-1 py-1 font-mono [appearance:textfield]')} />
                         <button onClick={addPurchase} disabled={busy || !addTarget.playerId}
                           className="text-amber-400 hover:text-amber-300 disabled:opacity-40 transition-colors">
                           <Check className="w-3.5 h-3.5" />
@@ -192,7 +178,7 @@ export default function AuctionResultsModal({ auctionId, auctionName, canManage,
                     ) : (
                       <button
                         onClick={() => setAddTarget({ captainId: captain.id, playerId: null, price: '0' })}
-                        className="w-full px-4 py-1.5 text-left text-[10px] font-mono text-zinc-700 hover:text-zinc-400 border-t border-zinc-800/60 transition-colors">
+                        className="w-full px-4 py-1.5 text-left font-display text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-600 hover:text-amber-400 border-t border-zinc-800 transition-colors">
                         + add player
                       </button>
                     )
@@ -209,34 +195,22 @@ export default function AuctionResultsModal({ auctionId, auctionName, canManage,
             {confirm === null ? (
               <>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setConfirm('reopen')}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:border-amber-500/40 hover:text-amber-400 transition-colors">
-                    Reopen auction
-                  </button>
-                  <button onClick={() => setConfirm('wipe')}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:border-red-500/40 hover:text-red-400 transition-colors">
-                    Wipe auction
-                  </button>
+                  <Button size="sm" onClick={() => setConfirm('reopen')} className="hover:text-amber-400 hover:border-amber-700">Reopen auction</Button>
+                  <Button size="sm" onClick={() => setConfirm('wipe')} className="hover:text-red-400 hover:border-red-700">Wipe auction</Button>
                 </div>
-                <p className="text-[10px] font-mono text-zinc-700">admin only</p>
+                <p className="font-display text-[9px] uppercase tracking-[0.2em] text-zinc-600">admin only</p>
               </>
             ) : confirm === 'reopen' ? (
               <div className="flex items-center gap-3 w-full">
                 <p className="text-xs text-zinc-400 flex-1">Reopen the auction and set the session to paused?</p>
-                <button onClick={handleReopen} disabled={busy}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors disabled:opacity-40">
-                  {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirm reopen'}
-                </button>
-                <button onClick={() => setConfirm(null)} className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors">Cancel</button>
+                <Button size="sm" variant="gilt-outline" onClick={handleReopen} loading={busy}>Confirm reopen</Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
               </div>
             ) : (
               <div className="flex items-center gap-3 w-full">
                 <p className="text-xs text-red-400 flex-1">This will delete all purchases and reset the auction. Irreversible.</p>
-                <button onClick={handleWipe} disabled={busy}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-40">
-                  {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirm wipe'}
-                </button>
-                <button onClick={() => setConfirm(null)} className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors">Cancel</button>
+                <Button size="sm" variant="danger" onClick={handleWipe} loading={busy}>Confirm wipe</Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
               </div>
             )}
           </div>

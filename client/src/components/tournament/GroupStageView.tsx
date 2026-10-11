@@ -83,11 +83,11 @@ function MatchRow({ match, canManage, captains, onSave }: {
   }
 
   return (
-    <div className={cn('flex items-center gap-1 px-2 py-1 rounded-lg border',
-      played ? 'border-zinc-700/60 bg-zinc-950/80' : 'border-zinc-800/50 bg-zinc-950/40',
+    <div className={cn('flex items-center gap-1 px-2 py-1 rounded-sm border',
+      played ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-800/60 bg-zinc-950/50',
       isPlaceholder && 'opacity-40'
     )}>
-      <span className="w-2.5 flex-shrink-0 flex items-center">
+      <span className="w-2.5 flex-shrink-0 flex items-center justify-center">
         {winA && <Crown className="w-2.5 h-2.5 text-amber-400" />}
       </span>
       <span className={cn('text-xs text-right flex-1 min-w-0 truncate',
@@ -114,7 +114,7 @@ function MatchRow({ match, canManage, captains, onSave }: {
         winB ? 'text-amber-400 font-semibold' : tdB ? 'text-zinc-600 italic' : 'text-zinc-300')}>
         {nameB}
       </span>
-      <span className="w-2.5 flex-shrink-0 flex items-center">
+      <span className="w-2.5 flex-shrink-0 flex items-center justify-center">
         {winB && <Crown className="w-2.5 h-2.5 text-amber-400" />}
       </span>
       {canInput && (
@@ -182,18 +182,18 @@ function Standings({ matches, captains }: { matches: Match[]; captains: Captain[
       </colgroup>
       <thead>
         <tr className="border-b border-zinc-800">
-          <th className="py-1 text-left font-mono uppercase text-zinc-600">#</th>
-          <th className="py-1 pl-1 text-left font-mono uppercase text-zinc-600">Team</th>
+          <th className="py-1 text-left font-display text-[9px] font-semibold uppercase tracking-[0.15em] text-zinc-600">#</th>
+          <th className="py-1 pl-1 text-left font-display text-[9px] font-semibold uppercase tracking-[0.15em] text-zinc-600">Team</th>
           {['P','W','L','RW','RL','RD','Pts'].map(h => (
-            <th key={h} className="py-1 text-center font-mono uppercase text-zinc-600 tabular-nums">{h}</th>
+            <th key={h} className="py-1 text-center font-display text-[9px] font-semibold uppercase tracking-[0.15em] text-zinc-600">{h}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {sorted.map((row, i) => (
-          <tr key={row.id} className={cn('border-b border-zinc-800/30 last:border-0', i < 2 && 'bg-amber-500/5')}>
+          <tr key={row.id} className={cn('border-b border-zinc-800/60 last:border-0', i < 2 && 'bg-amber-500/[0.06]')}>
             <td className="py-0.5 text-zinc-600 font-mono">{i + 1}</td>
-            <td className="py-0.5 pl-1 text-zinc-300 font-medium truncate">{row.name}</td>
+            <td className="py-0.5 pl-1 text-zinc-100 truncate">{row.name}</td>
             <td className="py-0.5 text-center text-zinc-500 font-mono tabular-nums">{row.p}</td>
             <td className="py-0.5 text-center text-zinc-400 font-mono tabular-nums">{row.w}</td>
             <td className="py-0.5 text-center text-zinc-600 font-mono tabular-nums">{row.l}</td>
@@ -202,7 +202,7 @@ function Standings({ matches, captains }: { matches: Match[]; captains: Captain[
             <td className="py-0.5 text-center text-zinc-500 font-mono tabular-nums">
               {row.rw - row.rl >= 0 ? '+' : ''}{row.rw - row.rl}
             </td>
-            <td className="py-0.5 text-center text-zinc-200 font-mono font-semibold tabular-nums">{row.w * 3}</td>
+            <td className="py-0.5 text-center text-zinc-50 font-mono font-bold tabular-nums">{row.w * 3}</td>
           </tr>
         ))}
       </tbody>
@@ -229,7 +229,7 @@ export default function GroupStageView({ matches, group, captains, canManage, on
           const roundMatches = display.filter(m => m.round === r).sort((a, b) => a.match_order - b.match_order)
           return (
             <div key={r} className="space-y-1.5 min-w-0">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 text-center">Round {r}</p>
+              <p className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600 text-center">Round {r}</p>
               {roundMatches.map(m => (
                 <MatchRow key={m.id} match={m} canManage={canManage} captains={captains} onSave={onResultUpdate} />
               ))}

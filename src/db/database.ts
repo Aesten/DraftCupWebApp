@@ -1,5 +1,6 @@
 import { Database, type SQLQueryBindings } from 'bun:sqlite'
-import { SCHEMA, FACTION_SEED } from './schema'
+import { FACTION_SEED } from './schema'
+import { migrate } from './migrations'
 import path from 'path'
 
 let _db: Database | null = null
@@ -20,8 +21,8 @@ export function initDb(dbPath?: string): Database {
   db.run('PRAGMA foreign_keys = ON')
   db.run('PRAGMA cache_size = -8000')
 
-  // Apply schema (CREATE TABLE IF NOT EXISTS — safe to re-run)
-  db.run(SCHEMA)
+  // Bring the schema up to date (see migrations.ts)
+  const version = migrate(db)
 
   // Seed static factions once
   const count = (db.query('SELECT COUNT(*) as n FROM factions').get() as { n: number }).n
@@ -32,7 +33,7 @@ export function initDb(dbPath?: string): Database {
   }
 
   _db = db
-  console.log(`[db] Ready at ${resolvedPath}`)
+  console.log(`[db] Ready at ${resolvedPath} (schema v${version})`)
   return db
 }
 

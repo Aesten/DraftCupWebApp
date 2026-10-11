@@ -1,72 +1,13 @@
 import { api } from './client'
-import type { Captain } from './auctions'
+import type {
+  AuctionSession, SessionBid, SessionChatMessage, SessionDetail,
+  QueueEntryWithClasses, PurchaseWithClasses,
+} from '@shared/types'
 
-export interface AuctionSession {
-  id: number
-  auction_id: number
-  status: 'pending' | 'live' | 'paused' | 'finished'
-  sold_count: number
-  skipped_count: number
-  half_budget: number   // 0|1
-  created_at: string
-  started_at: string | null
-  finished_at: string | null
-}
-
-export interface SessionQueueEntry {
-  id: number
-  session_id: number
-  player_id: number | null
-  player_name: string
-  queue_position: number
-  status: 'pending' | 'active' | 'sold'
-  player_classes?: string   // comma-separated, present on activePlayer
-}
-
-export interface SessionPurchase {
-  id: number
-  session_id: number
-  captain_id: number
-  player_id: number | null
-  player_name: string
-  price: number
-  purchased_at: string
-  player_classes: string  // comma-separated: inf,arc,cav
-}
-
-export interface SessionBid {
-  id: number
-  session_id: number
-  queue_entry_id: number
-  captain_id: number
-  captain_name: string
-  amount: number
-  placed_at: string
-}
-
-export interface SessionChatMessage {
-  id: number
-  session_id: number
-  author_role: string
-  author_name: string
-  content: string
-  sent_at: string
-}
-
-export interface SessionDetail {
-  session:      AuctionSession
-  activePlayer: SessionQueueEntry | null
-  upcoming:     SessionQueueEntry[]
-  purchases:    SessionPurchase[]
-  captains:     Array<Captain & { spent: number; remaining: number }>
-  progress:     { total: number; sold: number; cycled: number; done: number; playersPerTeam: number; poolRemaining: number }
-  auctionName:  string
-  minIncrement: number
-  bidCooldown:  number
-  currentBid:   SessionBid | null
-  bidHistory:   SessionBid[]
-  chatMessages: SessionChatMessage[]
-}
+export type { AuctionSession, SessionBid, SessionChatMessage, SessionDetail }
+/** Queue entries as returned by the session endpoints (always carry player_classes). */
+export type SessionQueueEntry = QueueEntryWithClasses
+export type SessionPurchase   = PurchaseWithClasses
 
 export const sessionsApi = {
   listForAuction: (auctionId: number) =>
@@ -81,7 +22,7 @@ export const sessionsApi = {
     api.post<{ ok: boolean; status: string }>(`/api/sessions/${id}/pause`),
   start: (id: number) =>
     api.post<{ activePlayer: SessionQueueEntry }>(`/api/sessions/${id}/start`),
-  advance: (id: number, data: { action: 'sold' | 'skipped'; captain_id?: number; price?: number }) =>
+  advance: (id: number, data: { action: 'sold' | 'skipped'; captain_id?: number; price?: number; expected_bid_id?: number }) =>
     api.post<{ session: AuctionSession; activePlayer: SessionQueueEntry | null; upcoming: SessionQueueEntry[] }>(`/api/sessions/${id}/advance`, data),
   bid: (id: number, data: { amount: number; captain_id?: number }) =>
     api.post<{ bid: SessionBid }>(`/api/sessions/${id}/bid`, data),

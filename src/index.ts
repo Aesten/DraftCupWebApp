@@ -3,8 +3,7 @@ import { upgradeWebSocket, websocket } from 'hono/bun'
 import { serveStatic } from 'hono/bun'
 import { logger } from 'hono/logger'
 import { initDb } from './db/database'
-import { onWsOpen, onWsMessage, onWsClose } from './ws/auctionRoom'
-import { onPickBanWsOpen, onPickBanWsClose } from './ws/pickBanRoom'
+import { auctionRoom, pickBanRoom } from './ws/rooms'
 import auth     from './routes/auth'
 import tournaments from './routes/tournaments'
 import auctions from './routes/auctions'
@@ -38,26 +37,23 @@ app.route('/api/factions', factions)
 
 app.use('/uploads/*', serveStatic({ root: './' }))
 
-// ─── WebSocket: Auction room ──────────────────────────────────────────────────
-// /ws/auction/:sessionId?token=<jwt>
-// Public clients omit token — read-only observer mode.
-// Must be registered before the /*  SPA catch-all.
+// ─── WebSocket rooms ──────────────────────────────────────────────────────────
+// Broadcast-only: the server pushes "re-fetch now" after each mutation.
+// No commands are accepted over the socket. Must be registered before the /* SPA catch-all.
 
 app.get('/ws/auction/:sessionId', upgradeWebSocket((c) => {
   const sessionId = Number(c.req.param('sessionId'))
-  const token     = c.req.query('token') ?? null
   return {
-    onOpen(_, ws)     { onWsOpen(ws, sessionId, token) },
-    onMessage(ev, ws) { onWsMessage(ws, ev.data.toString()) },
-    onClose(_, ws)    { onWsClose(ws) },
+    onOpen(_, ws)  { auctionRoom.onOpen(ws, sessionId) },
+    onClose(_, ws) { auctionRoom.onClose(ws) },
   }
 }))
 
 app.get('/ws/pickban/:sessionId', upgradeWebSocket((c) => {
   const sessionId = Number(c.req.param('sessionId'))
   return {
-    onOpen(_, ws)  { onPickBanWsOpen(ws, sessionId) },
-    onClose(_, ws) { onPickBanWsClose(ws) },
+    onOpen(_, ws)  { pickBanRoom.onOpen(ws, sessionId) },
+    onClose(_, ws) { pickBanRoom.onClose(ws) },
   }
 }))
 

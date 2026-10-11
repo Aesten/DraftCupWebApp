@@ -1,5 +1,34 @@
 import { api } from './client'
 
+// ─── Stats (uploaded per division, served on the public stats tab) ───────────
+
+export interface StatRow {
+  rank: number; name: string; played: number; won: number; wr: number
+  score: number; score_per_round: number; kills: number; deaths: number; assists: number
+  kpr: number; dpr: number; apr: number; kapr: number; spawns: number; survival: number
+  mvp: number; mvp_rate: number; first_kills: number; first_deaths: number
+  bonks: number; couches: number; kicks: number; horse_dmg: number; horse_kills: number
+  shots: number; hits: number; hit_rate: number; hs: number; hs_rate: number
+  tk: number; th: number; td: number; th_taken: number; suicides: number
+  melee_dmg: number; mounted_dmg: number; ranged_dmg: number
+  melee_pct: number; mounted_pct: number; ranged_pct: number
+  // Augmented fields (computed client-side, not from CSV)
+  cost?:           number | null
+  cost_per_score?: number | null
+  auction_name?:   string | null
+}
+
+export interface ColumnCondition { dependsOn: string; minValue: number }
+export type GradientType = 'green-up' | 'red-up' | 'yellow-up' | 'heatmap'
+
+export interface StatsConfig {
+  hiddenColumns: string[]
+  conditions:    Record<string, ColumnCondition>
+  gradients:     Record<string, GradientType>
+  nameMap?:      Record<string, string>   // in-game name → auction player name
+  captains?:     string[]                 // auction player names who are captains
+}
+
 export interface Tournament {
   id:               number
   name:             string
@@ -75,6 +104,11 @@ export interface PublicTournamentOverview {
   matchups:   PublicMatchup[]
 }
 
+export interface PublicStats {
+  rows:   StatRow[]
+  config: StatsConfig | null
+}
+
 export const tournamentsApi = {
   list: () => api.get<Tournament[]>('/api/tournaments'),
 
@@ -96,6 +130,8 @@ export const tournamentsApi = {
   getPublic: (slug: string) => api.get<PublicTournamentOverview>(`/api/tournaments/public/${slug}`),
 
   // Stats
+  getPublicStats: (slug: string, auctionId: number) =>
+    api.get<PublicStats | null>(`/api/tournaments/public/${slug}/stats/${auctionId}`),
   listStats:    () => api.get<number[]>('/api/tournaments/stats'),
   uploadStats:  (auctionId: number, file: File) => {
     const form = new FormData()

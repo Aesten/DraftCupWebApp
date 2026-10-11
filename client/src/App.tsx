@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from '@/lib/queryClient'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { ToastProvider } from '@/context/ToastContext'
 import type { Role } from '@/api/auth'
-import { tournamentsApi } from '@/api/tournaments'
+import { useFeatured } from '@/queries'
 import { Loader2 } from 'lucide-react'
 import TournamentDetail from '@/components/tournament/TournamentDetail'
 
@@ -36,25 +38,20 @@ function PageLoader() {
 function RootPage() {
   const { loading, user } = useAuth()
   const navigate = useNavigate()
-  const [featuredSlug, setFeaturedSlug] = useState<string | null | undefined>(undefined)
+  const featured = useFeatured()
+  const featuredSlug = featured.isError ? null : featured.data?.slug ?? null
+  const settled = !loading && !featured.isPending
 
   useEffect(() => {
-    if (loading) return
-    tournamentsApi.getFeatured()
-      .then(t => setFeaturedSlug(t?.slug ?? null))
-      .catch(() => setFeaturedSlug(null))
-  }, [loading, navigate])
-
-  useEffect(() => {
-    if (!featuredSlug) return
+    if (!settled || !featuredSlug) return
     if (user?.role === 'captain' && user.auctionId) {
       navigate(`/t/${featuredSlug}?div=${user.auctionId}&tab=bracket`, { replace: true })
     } else {
       navigate(`/t/${featuredSlug}`, { replace: true })
     }
-  }, [featuredSlug, navigate])
+  }, [settled, featuredSlug, user, navigate])
 
-  if (loading || featuredSlug === undefined || featuredSlug) return <PageLoader />
+  if (!settled || featuredSlug) return <PageLoader />
 
   return <HomePage />
 }
@@ -152,12 +149,14 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <AppRoutes />
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   )
 }

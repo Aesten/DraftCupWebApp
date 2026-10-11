@@ -1,13 +1,14 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useWs } from '@/hooks/useWs'
 import { useTitle } from '@/hooks/useTitle'
-import { bracketsApi, type PickBanSession, type PickBanBan, type PickBanMapDetail, type PickBanCaptainDetail } from '@/api/brackets'
-import { factionsApi, type Faction } from '@/api/maps'
+import { bracketsApi, type PickBanSession, type PickBanMapDetail, type PickBanCaptainDetail } from '@/api/brackets'
+import { type Faction } from '@/api/maps'
 import { useAuth } from '@/context/AuthContext'
+import { usePickBanDetail, useFactions } from '@/queries'
 import { cn, imgSrc } from '@/lib/utils'
 import { Loader2, Shield, Swords, RotateCcw } from 'lucide-react'
 import FinalsMatchupCard from '@/components/FinalsMatchupCard'
+import { Button, Seal, buttonCls } from '@/components/ui'
 
 import Aserai   from '@/assets/factions/Aserai.webp'
 import Battania from '@/assets/factions/Battania.webp'
@@ -21,8 +22,8 @@ const FACTION_IMG: Record<string, string> = { Aserai, Battania, Empire, Khuzait,
 // ─── Side colours ─────────────────────────────────────────────────────────────
 
 const SIDE = {
-  a: { text: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/25',   label: 'Side A' },
-  b: { text: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/25', label: 'Side B' },
+  a: { text: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-600',   label: 'Side A' },
+  b: { text: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-600', label: 'Side B' },
 }
 
 // ─── Map card ─────────────────────────────────────────────────────────────────
@@ -42,12 +43,12 @@ function MapCard({
     <div
       onClick={clickable && !banned ? onClick : undefined}
       className={cn(
-        'relative rounded-xl overflow-hidden border transition-all duration-200 text-left',
+        'relative rounded-sm overflow-hidden border transition-colors duration-200 text-left',
         'aspect-[4/3] w-full flex flex-col justify-end',
         banned   && 'opacity-40 cursor-default border-zinc-800',
-        selected && 'border-amber-500/60 shadow-lg shadow-amber-500/10',
-        pending  && 'border-red-400/60 shadow-lg shadow-red-500/20',
-        clickable && !banned && !pending && 'border-zinc-700 hover:border-red-400/60 hover:shadow-lg hover:shadow-red-500/10 cursor-pointer group',
+        selected && 'border-amber-500 shadow-[inset_0_0_0_1px_#c8a24a]',
+        pending  && 'border-red-500 shadow-[inset_0_0_0_1px_#b8423a]',
+        clickable && !banned && !pending && 'border-zinc-700 hover:border-red-500 cursor-pointer group',
         clickable && !banned && pending  && 'cursor-pointer',
         !clickable && !banned && !selected && !pending && 'border-zinc-800 cursor-default',
       )}
@@ -56,21 +57,21 @@ function MapCard({
       {map.image_path ? (
         <img src={imgSrc(map.image_path)} alt={map.name} className="absolute inset-0 w-full h-full object-cover" />
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900" />
+        <div className="absolute inset-0 bg-zinc-800" />
       )}
 
-      {/* Dark gradient overlay for text */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      {/* Shade for the label */}
+      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/85 via-zinc-950/20 to-transparent" />
 
       {/* Banned overlay */}
       {banned && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 gap-1">
-          <span className="text-lg font-black text-zinc-400 line-through">{map.name}</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/60 gap-1">
+          <span className="font-display text-sm font-bold text-zinc-400 line-through">{map.name}</span>
           {bannedBy && (
-            <span className={cn('text-[10px] font-mono px-2 py-0.5 rounded-full border',
-              bannedBy === 'a' ? 'text-blue-400 bg-blue-400/10 border-blue-400/20' : 'text-violet-400 bg-violet-400/10 border-violet-400/20'
+            <span className={cn('font-display text-[8px] font-bold uppercase tracking-[0.15em] px-1.5 py-0.5 border',
+              bannedBy === 'a' ? 'text-blue-400 bg-blue-500/10 border-blue-600' : 'text-violet-400 bg-violet-500/10 border-violet-600'
             )}>
-              BANNED BY {SIDE[bannedBy].label.toUpperCase()}
+              Banned by {SIDE[bannedBy].label}
             </span>
           )}
         </div>
@@ -78,19 +79,19 @@ function MapCard({
 
       {/* Hover ban hint — purely visual */}
       {clickable && !banned && !pending && (
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/10 pointer-events-none">
-          <span className="text-xs font-bold text-red-400 bg-black/60 px-2 py-1 rounded-lg">Click to ban</span>
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-red-600/10 pointer-events-none">
+          <span className="font-display text-[10px] font-bold uppercase tracking-[0.15em] text-red-400 bg-zinc-950/80 border border-red-700 px-2 py-1">Click to ban</span>
         </div>
       )}
 
       {/* Map name bottom strip */}
       {!banned && (
         <div className="relative px-2 pb-2 pt-6">
-          <p className={cn('text-xs font-bold truncate', pending ? 'text-red-400' : selected ? 'text-amber-400' : 'text-zinc-200')}>
+          <p className={cn('font-display text-[11px] font-bold truncate', pending ? 'text-red-400' : selected ? 'text-amber-400' : 'text-zinc-100')}>
             {map.name}
           </p>
-          {pending && <span className="text-[9px] font-mono text-red-400/70">SELECTED</span>}
-          {selected && <span className="text-[10px] font-mono text-amber-400/80">SELECTED</span>}
+          {pending && <span className="font-display text-[8px] uppercase tracking-[0.2em] text-red-400">Selected</span>}
+          {selected && <span className="font-display text-[8px] uppercase tracking-[0.2em] text-amber-400">Selected</span>}
         </div>
       )}
     </div>
@@ -118,11 +119,11 @@ function FactionCard({ faction, selected, locked, onSelect, disabled }: {
       )}
     >
       <div className={cn(
-        'w-14 h-14 rounded-full overflow-hidden border-2 transition-all duration-200',
+        'w-14 h-14 rounded-full overflow-hidden border transition-colors duration-200',
         selected
           ? locked
-            ? 'border-amber-500 shadow-lg shadow-amber-500/20 scale-110'
-            : 'border-blue-400 shadow-lg shadow-blue-400/20 scale-110'
+            ? 'border-amber-500 shadow-[0_0_0_2px_#0c0b09,0_0_0_3px_#c8a24a]'
+            : 'border-blue-400 shadow-[0_0_0_2px_#0c0b09,0_0_0_3px_#7c9cc0]'
           : 'border-zinc-700 group-hover:border-zinc-500',
       )}>
         {img ? (
@@ -131,11 +132,11 @@ function FactionCard({ faction, selected, locked, onSelect, disabled }: {
           <div className="w-full h-full bg-zinc-800" />
         )}
       </div>
-      <span className={cn('text-[10px] font-bold',
+      <span className={cn('font-display text-[10px] font-bold',
         selected ? (locked ? 'text-amber-400' : 'text-blue-400') : 'text-zinc-500')}>
         {faction.name}
       </span>
-      {selected && locked && <span className="text-[9px] text-amber-400/70 font-mono -mt-1">LOCKED</span>}
+      {selected && locked && <span className="font-display text-[8px] uppercase tracking-[0.2em] text-amber-400 -mt-1">Locked</span>}
     </button>
   )
 }
@@ -178,22 +179,22 @@ function CaptainReadyCard({ side, captain, session, banSeq }: {
   const s      = SIDE[side]
   const status = captainStatus(side, session, banSeq)
   return (
-    <div className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border', s.bg, s.border)}>
-      <div className={cn('w-2 h-2 rounded-full flex-shrink-0 flex-shrink-0',
+    <div className={cn('flex items-center gap-3 px-4 py-3 rounded-sm border', s.bg, s.border)}>
+      <div className={cn('w-2 h-2 rotate-45 flex-shrink-0',
         status.dot === 'bg-current' ? (side === 'a' ? 'bg-blue-400' : 'bg-violet-400') : status.dot,
         status.pulse && 'animate-pulse'
       )} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <p className={cn('text-sm font-bold truncate', status.done ? 'text-green-300' : s.text)}>
+          <p className={cn('font-display text-xs font-bold tracking-[0.04em] truncate', status.done ? 'text-green-300' : s.text)}>
             {captain?.display_name || captain?.team_name || s.label}
           </p>
-          <span className={cn('text-[9px] font-mono px-1.5 py-0.5 rounded border flex-shrink-0', s.text,
-            side === 'a' ? 'bg-blue-500/10 border-blue-500/20' : 'bg-violet-500/10 border-violet-500/20')}>
+          <span className={cn('font-display text-[8px] font-bold uppercase tracking-[0.15em] px-1.5 py-0.5 border flex-shrink-0', s.text, s.border,
+            side === 'a' ? 'bg-blue-500/10' : 'bg-violet-500/10')}>
             {s.label}
           </span>
         </div>
-        <p className="text-[10px] font-mono text-zinc-500">{status.label}</p>
+        <p className="text-xs text-zinc-500">{status.label}</p>
       </div>
     </div>
   )
@@ -206,16 +207,16 @@ function BanStepper({ sequence, currentTurn }: { sequence: ('a' | 'b')[]; curren
     <div className="flex items-center gap-1.5 justify-center">
       {sequence.map((side, i) => (
         <div key={i} className={cn(
-          'flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold border transition-all',
+          'flex items-center justify-center w-6 h-6 rounded-sm font-display text-[10px] font-bold border transition-colors',
           i < currentTurn
             ? 'bg-zinc-700 border-zinc-600 text-zinc-500'          // done
             : i === currentTurn
               ? side === 'a'
-                ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 scale-110'
-                : 'bg-violet-500/20 border-violet-500/50 text-violet-300 scale-110'
+                ? 'bg-blue-500/20 border-blue-400 text-blue-300'
+                : 'bg-violet-500/20 border-violet-400 text-violet-300'
               : side === 'a'
-                ? 'bg-zinc-900 border-blue-500/20 text-blue-500/40'
-                : 'bg-zinc-900 border-violet-500/20 text-violet-500/40',
+                ? 'bg-zinc-900 border-blue-600/50 text-blue-400/50'
+                : 'bg-zinc-900 border-violet-600/50 text-violet-400/50',
         )}>
           {side.toUpperCase()}
         </div>
@@ -231,14 +232,6 @@ export default function PickBanPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  const [session,   setSession]   = useState<PickBanSession | null>(null)
-  const [bans,      setBans]      = useState<PickBanBan[]>([])
-  const [factions,  setFactions]  = useState<Faction[]>([])
-  const [mapPool,   setMapPool]   = useState<PickBanMapDetail[]>([])
-  const [captainA,  setCaptainA]  = useState<PickBanCaptainDetail | null>(null)
-  const [captainB,  setCaptainB]  = useState<PickBanCaptainDetail | null>(null)
-  const [chosenMap, setChosenMap] = useState<PickBanMapDetail | null>(null)
-  const [loading,   setLoading]   = useState(true)
   const [acting,     setActing]     = useState(false)
   const [myPick,     setMyPick]     = useState<number | null>(null)
   const [resetting,  setResetting]  = useState(false)
@@ -248,44 +241,29 @@ export default function PickBanPage() {
   const isCaptain = user?.role === 'captain'
   const isHost    = user?.role === 'host' || user?.role === 'admin'
 
+  const detailQ   = usePickBanDetail(Number(sessionId))
+  const factionsQ = useFactions()
+  const session   = detailQ.data?.session ?? null
+  const bans      = detailQ.data?.bans ?? []
+  const mapPool   = detailQ.data?.mapPool ?? []
+  const captainA  = detailQ.data?.captainA ?? null
+  const captainB  = detailQ.data?.captainB ?? null
+  const chosenMap = detailQ.data?.chosenMap ?? null
+  const factions  = factionsQ.data ?? []
+  const load      = detailQ.refresh
+
   const pickBanTitle = captainA && captainB
     ? `${captainA.display_name} vs ${captainB.display_name} · Pick & Ban`
     : 'Pick & Ban'
   useTitle(pickBanTitle)
 
-  const load = useCallback(async () => {
-    if (!sessionId) return
-    try {
-      const [data, factionList] = await Promise.all([
-        bracketsApi.getPickBan(Number(sessionId)),
-        factionsApi.list(),
-      ])
-      setSession(data.session)
-      setBans(data.bans)
-      setFactions(factionList)
-      setMapPool(data.mapPool)
-      setCaptainA(data.captainA)
-      setCaptainB(data.captainB)
-      setChosenMap(data.chosenMap)
-      setLoading(false)
-    } catch {
-      navigate('/captain', { replace: true })
-    }
-  }, [sessionId, navigate])
+  // A session that cannot be read (deleted, or not ours) sends the captain home.
+  useEffect(() => {
+    if (detailQ.isError) navigate('/captain', { replace: true })
+  }, [detailQ.isError, navigate])
 
-  useEffect(() => { load() }, [load])
-
-  useWs({
-    sessionId: Number(sessionId),
-    token:     null,
-    path:      'pickban',
-    onMessage: load,
-    onOpen:    load,
-    enabled:   session?.status !== 'complete',
-  })
-
-  if (loading || !session) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+  if (!session || factionsQ.isPending) return (
+    <div className="min-h-screen flex items-center justify-center">
       <Loader2 className="w-6 h-6 text-zinc-600 animate-spin" />
     </div>
   )
@@ -342,33 +320,21 @@ export default function PickBanPage() {
   const factionB = factions.find(f => f.id === (session.b_pick as number))
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
+    <div className="min-h-screen flex flex-col">
 
       {/* ── Header ── */}
-      <div className="border-b border-zinc-800 px-6 py-3 flex items-center justify-between flex-shrink-0">
+      <div className="border-b border-zinc-700 px-6 py-3 flex items-center justify-between flex-shrink-0 shadow-[0_1px_0_#1a1712,0_2px_0_rgba(200,162,74,0.2)]"
+        style={{ backgroundColor: 'var(--color-surface-head)' }}>
         <div className="flex items-center gap-3">
-          <Swords className="w-5 h-5 text-amber-500/70" />
-          <span className="text-lg font-black tracking-tight text-zinc-100"
-            style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-            FINALS PICK-BAN
-          </span>
+          <Swords className="w-5 h-5 text-amber-500" />
+          <span className="font-display text-base font-bold uppercase tracking-[0.15em] text-zinc-50">Finals pick-ban</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className={cn(
-            'text-[10px] font-mono px-2.5 py-1 rounded-full border',
-            session.status === 'complete'
-              ? 'text-green-400 bg-green-400/10 border-green-400/20'
-              : 'text-amber-400 bg-amber-400/10 border-amber-400/20 animate-pulse'
-          )}>
-            {statusLabel[session.status] ?? session.status}
-          </span>
+          <Seal tone={session.status === 'complete' ? 'finished' : 'gilt'}>{statusLabel[session.status] ?? session.status}</Seal>
           {isHost && session.status !== 'complete' && (
-            <button onClick={resetSession} disabled={resetting}
-              title="Reset pick-ban session"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs hover:bg-red-500/20 transition-colors disabled:opacity-40">
-              {resetting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+            <Button size="sm" variant="danger" onClick={resetSession} loading={resetting} title="Reset pick-ban session" icon={<RotateCcw className="w-3 h-3" />}>
               Reset
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -387,24 +353,22 @@ export default function PickBanPage() {
           <>
             {/* Map pool preview */}
             <div className="w-full space-y-2">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600">Map Pool</p>
+              <p className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600">Map Pool</p>
               <div className="grid grid-cols-5 gap-2">
                 {mapPool.map(m => <MapCard key={m.id} map={m} />)}
               </div>
             </div>
 
             {isCaptain && mySide && !hasJoined && (
-              <button onClick={joinSession} disabled={acting}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-500 text-black font-bold hover:bg-amber-400 transition-colors disabled:opacity-40">
-                {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Swords className="w-4 h-4" />}
+              <Button variant="primary" onClick={joinSession} loading={acting} icon={<Swords className="w-4 h-4" />} className="w-full py-3 text-xs">
                 Join as {SIDE[mySide].label}
-              </button>
+              </Button>
             )}
             {isCaptain && mySide && hasJoined && (
-              <p className="text-sm text-zinc-500">Joined ✓ — waiting for opponent…</p>
+              <p className="text-sm text-zinc-500 italic">Joined. Waiting for the opponent…</p>
             )}
             {isHost && (
-              <p className="text-xs text-zinc-700 font-mono">Watching — captains are joining</p>
+              <p className="text-xs text-zinc-600 italic">Watching. Captains are joining.</p>
             )}
           </>
         )}
@@ -414,13 +378,13 @@ export default function PickBanPage() {
           <>
             <div className="w-full space-y-3 text-center">
               <BanStepper sequence={banSeq} currentTurn={session.ban_turn} />
-              <p className={cn('text-sm font-bold',
+              <p className={cn('font-display text-xs font-bold uppercase tracking-[0.12em]',
                 myTurn ? 'text-red-400' : 'text-zinc-400')}>
                 {myTurn
-                  ? '⚔ Your turn — select a map to ban'
+                  ? 'Your turn: select a map to ban'
                   : `Waiting for ${SIDE[banSeq[session.ban_turn] ?? 'a'].label} to ban…`}
               </p>
-              <p className="text-[10px] font-mono text-zinc-700">
+              <p className="text-xs font-mono text-zinc-600">
                 Ban {session.ban_turn + 1} of {banSeq.length}
               </p>
             </div>
@@ -444,13 +408,10 @@ export default function PickBanPage() {
             </div>
             {pendingBan !== null && (
               <div className="flex flex-col items-center gap-1 pt-1">
-                <p className="text-[10px] text-zinc-500">This cannot be undone</p>
-                <button
-                  onClick={() => { const id = pendingBan; setPendingBan(null); submitBan(id) }}
-                  disabled={acting}
-                  className="px-5 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white text-sm font-bold transition-colors disabled:opacity-40">
-                  {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm ban'}
-                </button>
+                <p className="text-[11px] italic text-zinc-500">This cannot be undone</p>
+                <Button variant="danger" onClick={() => { const id = pendingBan; setPendingBan(null); submitBan(id) }} loading={acting} className="px-5 py-2.5 bg-red-600 text-zinc-50 hover:bg-red-500">
+                  Confirm ban
+                </Button>
               </div>
             )}
           </>
@@ -462,7 +423,7 @@ export default function PickBanPage() {
             {/* Chosen map (the survivor) */}
             {remaining.length === 1 && mapPool.find(m => m.id === remaining[0]) && (
               <div className="w-full space-y-2">
-                <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 text-center">Finals Map</p>
+                <p className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600 text-center">Finals Map</p>
                 <div className="max-w-xs mx-auto">
                   <MapCard map={mapPool.find(m => m.id === remaining[0])!} selected />
                 </div>
@@ -472,7 +433,7 @@ export default function PickBanPage() {
             {/* Faction picker */}
             {isCaptain && mySide && !myPickDone && (
               <div className="w-full space-y-2">
-                <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 text-center">
+                <p className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600 text-center">
                   Pick your faction — reveals simultaneously
                 </p>
                 <div className="flex flex-wrap justify-center gap-4">
@@ -488,13 +449,10 @@ export default function PickBanPage() {
                 </div>
                 {pendingPick !== null && (
                   <div className="flex flex-col items-center gap-1 pt-2">
-                    <p className="text-[10px] text-zinc-500">This cannot be undone</p>
-                    <button
-                      onClick={() => { const id = pendingPick; setPendingPick(null); submitPick(id) }}
-                      disabled={acting}
-                      className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold transition-colors disabled:opacity-40">
-                      {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Lock in faction'}
-                    </button>
+                    <p className="text-[11px] italic text-zinc-500">This cannot be undone</p>
+                    <Button variant="primary" onClick={() => { const id = pendingPick; setPendingPick(null); submitPick(id) }} loading={acting} className="px-5 py-2.5">
+                      Lock in faction
+                    </Button>
                   </div>
                 )}
               </div>
@@ -502,14 +460,14 @@ export default function PickBanPage() {
 
             {myPickDone && !session.revealed && (
               <div className="text-center py-4 space-y-2">
-                <Shield className="w-8 h-8 text-amber-500/60 mx-auto animate-pulse" />
-                <p className="text-sm font-bold text-zinc-300">Faction locked in</p>
-                <p className="text-xs text-zinc-600">Waiting for opponent to pick…</p>
+                <Shield className="w-8 h-8 text-amber-500 mx-auto" />
+                <p className="font-display text-xs font-bold uppercase tracking-[0.12em] text-zinc-200">Faction locked in</p>
+                <p className="text-xs text-zinc-500 italic">Waiting for the opponent to pick…</p>
               </div>
             )}
 
             {isHost && (
-              <p className="text-xs text-zinc-700 font-mono">Watching — captains are picking factions</p>
+              <p className="text-xs text-zinc-600 italic">Watching. Captains are picking factions.</p>
             )}
           </>
         )}
@@ -524,8 +482,7 @@ export default function PickBanPage() {
               factionAName={factionA?.name}
               factionBName={factionB?.name}
             />
-            <Link to="/captain"
-              className="w-full flex items-center justify-center py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-sm font-medium transition-colors">
+            <Link to="/captain" className={buttonCls('secondary', 'md', 'w-full py-2.5')}>
               ← Back to dashboard
             </Link>
           </div>

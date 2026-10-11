@@ -102,4 +102,16 @@ Admin uploads division stats → public stats tab live
 
 ---
 
+## Development
+
+```bash
+./init.sh            # install dependencies and build the frontend
+bun run seed:dev     # fill an empty database with a sample tournament (-- --force to replace existing data)
+bun run dev:server   # API + WebSocket on :3000
+bun run dev:client   # Vite on :5173 (proxies /api to :3000)
+bun run test         # server tests
+```
+
+The sample data is "BDC XVI": Division 1 finished with a played bracket, Division 2 live in the middle of its auction. The seed prints the login codes (host `DRAFT-HOST01`, auctioneer `DRAFT-AUCT01`, captains `DRAFT-CAPT01` to `DRAFT-CAPT08`). It refuses to run on a database that already contains a tournament unless you pass `--force`.
+
 See [spec.md](spec.md) for the full technical specification including API routes, database schema, and component descriptions.

@@ -1,61 +1,135 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* ─── Iron & Gilt ─────────────────────────────────────────────────────────────
+   The whole visual language lives here. Components use Tailwind's stock
+   palette names (zinc, amber, red, green…) so every existing class string is
+   re-themed by remapping those names to the Iron & Gilt tokens below:
+
+     zinc   → iron greys (backgrounds, borders) and parchment (text)
+     amber  → gilt: the accent, used as thin metal
+     red    → blood: live, danger, cavalry
+     green / emerald → forest: complete, success
+     blue   → steel (host), violet / purple → plum (auctioneer)
+
+   Fonts: Cinzel (display: names, headings, labels, buttons), Alegreya (body),
+   JetBrains Mono (numbers, codes, commands). Loaded from index.html.
+   Corners are 2–4px, borders are hairlines, nothing glows.
+──────────────────────────────────────────────────────────────────────────── */
+
 @theme {
   /* Fonts */
-  --font-sans: "DM Sans", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
-  --font-display: "Barlow Condensed", sans-serif;
+  --font-sans:    "Alegreya", Georgia, "Times New Roman", serif;
+  --font-mono:    "JetBrains Mono", "Fira Code", "Courier New", monospace;
+  --font-display: "Cinzel", "Times New Roman", serif;
 
-  /* Surface colors */
-  --color-surface-base: #0a0a0b;
-  --color-surface-raised: #111113;
-  --color-surface-overlay: #18181b;
-  --color-surface-border: #27272a;
-  --color-surface-muted: #3f3f46;
+  /* Radii: sharp */
+  --radius-xs:  1px;
+  --radius-sm:  2px;
+  --radius-md:  2px;
+  --radius-lg:  2px;
+  --radius-xl:  3px;
+  --radius-2xl: 3px;
+  --radius-3xl: 4px;
+  --radius-4xl: 6px;
 
-  /* Accent — amber */
-  --color-accent: #f59e0b;
-  --color-accent-bright: #fbbf24;
-  --color-accent-dim: #d97706;
-  --color-accent-glow: #f59e0b33;
+  /* Iron (backgrounds, borders) → Parchment (text) */
+  --color-zinc-950: #0c0b09;
+  --color-zinc-900: #14120e;
+  --color-zinc-800: #262219;
+  --color-zinc-700: #3d382d;
+  --color-zinc-600: #5c5546;
+  --color-zinc-500: #7d7460;
+  --color-zinc-400: #b0a68c;
+  --color-zinc-300: #c9bfa6;
+  --color-zinc-200: #e2d9c2;
+  --color-zinc-100: #efe8d6;
+  --color-zinc-50:  #f7f2e6;
+  --color-surface-head: #100f0b;
 
-  /* Text */
-  --color-text-primary: #fafafa;
-  --color-text-secondary: #a1a1aa;
-  --color-text-muted: #52525b;
-  --color-text-accent: #f59e0b;
+  /* Bone (infantry) */
+  --color-stone-300: #c9bfa6;
+  --color-stone-400: #b0a68c;
 
-  /* Shadows */
-  --shadow-amber-glow: 0 0 20px rgba(245, 158, 11, 0.15);
-  --shadow-amber-glow-lg: 0 0 40px rgba(245, 158, 11, 0.2);
+  /* Gilt */
+  --color-amber-200: #f0dfa6;
+  --color-amber-300: #e8d08a;
+  --color-amber-400: #e0be62;
+  --color-amber-500: #c8a24a;
+  --color-amber-600: #a8851d;
+  --color-amber-700: #8a6b14;
+  --color-amber-800: #5f4a12;
+  --color-amber-900: #3d3010;
+  --color-amber-950: #241c0a;
 
-  /* Animations */
-  --animate-slide-in-right: slide-in-right 0.25s ease-out;
-  --animate-slide-in-left: slide-in-left 0.25s ease-out;
+  /* Blood */
+  --color-red-300:  #e29a94;
+  --color-red-400:  #d06a62;
+  --color-red-500:  #b8423a;
+  --color-red-600:  #8e2b25;
+  --color-red-700:  #6e2622;
+  --color-red-800:  #4a1a17;
+  --color-red-900:  #3a1512;
+  --color-red-950:  #23100e;
+  --color-rose-400: #d06a62;
+  --color-rose-500: #c4483f;
+  --color-rose-600: #8e2b25;
+  --color-orange-400: #d9894a;
+  --color-orange-500: #b8652c;
+  --color-orange-600: #8f4c1f;
+
+  /* Forest */
+  --color-green-300:   #a6cfab;
+  --color-green-400:   #8fbf95;
+  --color-green-500:   #5c8f63;
+  --color-green-600:   #3f6b45;
+  --color-green-700:   #2f5234;
+  --color-green-800:   #2a3a2b;
+  --color-green-900:   #1c2a1d;
+  --color-green-950:   #121510;
+  --color-emerald-300: #a6cfab;
+  --color-emerald-400: #8fbf95;
+  --color-emerald-500: #5c8f63;
+  --color-emerald-600: #3f6b45;
+  --color-emerald-700: #2f5234;
+  --color-emerald-800: #2a3a2b;
+  --color-emerald-900: #1c2a1d;
+  --color-emerald-950: #121510;
+
+  /* Steel (host) and Plum (auctioneer) */
+  --color-blue-300:   #a9c0da;
+  --color-blue-400:   #7c9cc0;
+  --color-blue-500:   #4a6484;
+  --color-blue-600:   #3b5069;
+  --color-sky-400:    #7c9cc0;
+  --color-sky-500:    #4a6484;
+  --color-violet-300: #cdb0d6;
+  --color-violet-400: #b48ac0;
+  --color-violet-500: #6b4a7a;
+  --color-violet-600: #563b62;
+  --color-purple-300: #cdb0d6;
+  --color-purple-400: #b48ac0;
+  --color-purple-500: #6b4a7a;
+  --color-purple-600: #563b62;
+  --color-indigo-400: #7c9cc0;
+  --color-indigo-500: #4a6484;
+  --color-cyan-400:   #7c9cc0;
+  --color-teal-400:   #8fbf95;
+  --color-lime-400:   #8fbf95;
+  --color-yellow-400: #e0be62;
+  --color-yellow-500: #c8a24a;
+
+  /* Animations kept for transitions (no glow, no pulse) */
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-fade-up: fade-up 0.3s ease-out;
-  --animate-pulse-amber: pulse-amber 2s ease-in-out infinite;
 
-  @keyframes slide-in-right {
-    from { transform: translateX(40px); opacity: 0; }
-    to   { transform: translateX(0);    opacity: 1; }
-  }
-  @keyframes slide-in-left {
-    from { transform: translateX(-40px); opacity: 0; }
-    to   { transform: translateX(0);     opacity: 1; }
-  }
   @keyframes fade-in {
     from { opacity: 0; }
     to   { opacity: 1; }
   }
   @keyframes fade-up {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0);    }
-  }
-  @keyframes pulse-amber {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-    50%       { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.15); }
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
   }
 }
 
@@ -64,24 +138,26 @@
     box-sizing: border-box;
   }
 
-  :root {
-    --color-accent: #f59e0b;
-    --color-accent-dim: #d97706;
-    --color-surface-base: #0a0a0b;
-    --color-surface-raised: #111113;
-    --color-surface-border: #27272a;
-  }
-
   html {
     font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
   }
 
   body {
-    background-color: var(--color-surface-base);
     min-height: 100vh;
+    color: var(--color-zinc-100);
+    background-color: var(--color-zinc-950);
+    /* A faint warm cast at the top and a hairline weave: atmosphere without a gradient mesh. */
+    background-image:
+      radial-gradient(ellipse 70% 40% at 50% 0%, rgba(200, 162, 74, 0.07), transparent),
+      repeating-linear-gradient(0deg, rgba(243, 236, 218, 0.012) 0px, rgba(243, 236, 218, 0.012) 1px, transparent 1px, transparent 3px);
+    background-attachment: fixed;
   }
 
-  /* Custom scrollbar */
+  /* Numbers line up in tables and ledgers */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -90,80 +166,81 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #3f3f46;
-    border-radius: 3px;
+    background: var(--color-zinc-700);
+    border-radius: 1px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #52525b;
+    background: var(--color-zinc-600);
   }
 
-  /* Selection color */
   ::selection {
-    background: rgba(245, 158, 11, 0.25);
-    color: #fafafa;
+    background: rgba(200, 162, 74, 0.3);
+    color: var(--color-zinc-50);
   }
 
-  /* Focus ring */
   :focus-visible {
-    outline: 2px solid rgba(245, 158, 11, 0.6);
+    outline: 1px solid rgba(200, 162, 74, 0.7);
     outline-offset: 2px;
   }
 
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0 1000px #18181b inset;
-    -webkit-text-fill-color: #fafafa;
-    caret-color: #fafafa;
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 9999px var(--color-zinc-950) inset !important;
+    -webkit-text-fill-color: var(--color-zinc-100) !important;
+    caret-color: var(--color-zinc-100);
+    transition: background-color 9999s ease-in-out 0s;
   }
 }
 
 @layer components {
-  /* Amber glow border utility */
-  .border-amber-glow {
-    border-color: rgba(245, 158, 11, 0.4);
-    box-shadow: 0 0 12px rgba(245, 158, 11, 0.1);
+  /* Panel: the one container. A hairline border and a faint inner highlight, no shadow. */
+  .panel {
+    background: var(--color-zinc-900);
+    border: 1px solid var(--color-zinc-800);
+    border-radius: var(--radius-2xl);
+    box-shadow: inset 0 1px 0 rgba(243, 236, 218, 0.035);
+  }
+  .panel-head {
+    background: var(--color-surface-head);
+    border-bottom: 1px solid var(--color-zinc-800);
   }
 
-  /* Grid background texture */
-  .bg-grid {
-    background-image:
-      linear-gradient(rgba(245, 158, 11, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(245, 158, 11, 0.03) 1px, transparent 1px);
-    background-size: 32px 32px;
+  /* Gilt primary action: a thin metal gradient with a highlight edge. */
+  .btn-gilt {
+    background: linear-gradient(180deg, #dcb95f, #b8923a);
+    color: #14120e;
+    border: 1px solid #7a5f22;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  .btn-gilt:hover {
+    background: linear-gradient(180deg, #e6c66e, #c49d42);
   }
 
-  /* Status pill */
-  .status-live {
-    @apply inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider;
-    color: #4ade80;
+  /* Status seal: a double rule inside the border, like a stamped seal. */
+  .seal {
+    box-shadow: inset 0 0 0 2px var(--color-zinc-900), inset 0 0 0 3px currentColor;
   }
-  .status-live::before {
-    content: '';
+
+  /* Leading-bid plaque */
+  .plaque {
+    background: linear-gradient(180deg, var(--color-zinc-800), var(--color-zinc-900));
+    border: 1px solid #7a5f22;
+    box-shadow: inset 0 0 0 1px var(--color-zinc-900), inset 0 0 0 2px rgba(200, 162, 74, 0.33);
+  }
+
+  /* Ornamental hairline that fades toward one side */
+  .hairline-r { background: linear-gradient(90deg, transparent, var(--color-amber-500)); }
+  .hairline-l { background: linear-gradient(90deg, var(--color-amber-500), transparent); }
+
+  /* Lozenge: the single ornament */
+  .lozenge {
     display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #4ade80;
-    box-shadow: 0 0 6px #4ade80;
-    animation: pulse 2s ease-in-out infinite;
+    width: 5px;
+    height: 5px;
+    background: var(--color-amber-500);
+    transform: rotate(45deg);
+    flex-shrink: 0;
   }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-}
-
-/* ─── Autofill override ────────────────────────────────────────────────────── */
-/* Browsers force a white/yellow background on autofilled inputs.
-   Using a long box-shadow transition tricks them into using our color instead. */
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 9999px #18181b inset !important;
-  -webkit-text-fill-color: #f4f4f5 !important;
-  caret-color: #f4f4f5;
-  transition: background-color 9999s ease-in-out 0s;
 }

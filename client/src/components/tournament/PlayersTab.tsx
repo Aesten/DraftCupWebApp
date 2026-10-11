@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { playersApi, type Player } from '@/api/players'
 import { cn } from '@/lib/utils'
-import { Loader2, Plus, Check, X, Trash2, Pencil, Upload, AlertTriangle, CheckCircle2, XCircle, Download, LayoutGrid, List } from 'lucide-react'
+import { Loader2, Plus, Check, X, Trash2, Pencil, Upload, AlertTriangle, CheckCircle2, XCircle, Download, LayoutGrid, List, Search } from 'lucide-react'
 import {
   CLASSES, type ClassKey, CLASS_COLOR, CLASS_TEXT, CLASS_ICON,
   parseClasses, ClassToggle, type ViewRole,
 } from './shared'
+import { Button, inputCls, inputSmCls } from '@/components/ui'
+import { qk, useInvalidate, usePlayers } from '@/queries'
 
 import { useToast } from '@/context/ToastContext'
 import ImportModal from './ImportModal'
@@ -16,8 +19,10 @@ type AvailFilter = 'all' | 'available' | 'unavailable'
 
 export default function PlayersTab({ slug, role }: { slug: string; role: ViewRole }) {
   const { toast } = useToast()
-  const [players,     setPlayers]     = useState<Player[]>([])
-  const [loading,     setLoading]     = useState(true)
+  const qc         = useQueryClient()
+  const invalidate = useInvalidate()
+  const playersQ   = usePlayers(slug)
+  const players    = playersQ.data ?? []
   const [search,      setSearch]      = useState('')
   const [sortBy,      setSortBy]      = useState<'name' | 'inf' | 'arc' | 'cav'>('name')
   const [sortAsc,     setSortAsc]     = useState(true)
@@ -34,9 +39,7 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
   const [gridAddOpen,  setGridAddOpen]  = useState(false)
   const canManage = role === 'admin' || role === 'host'
 
-  useEffect(() => {
-    playersApi.listForTournament(slug).then(setPlayers).finally(() => setLoading(false))
-  }, [slug])
+  const refreshPlayers = () => invalidate(qk.players(slug))
 
   // Duplicate name detection — factors in the active edit so warning appears while typing
   const nameCounts = new Map<string, number>()
@@ -87,33 +90,33 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
     if (!newName.trim()) return
     setAdding(true)
     try {
-      const p = await playersApi.add(slug, { name: newName.trim(), classes: [...newClasses].join(',') })
-      setPlayers(prev => [...prev, p])
+      await playersApi.add(slug, { name: newName.trim(), classes: [...newClasses].join(',') })
+      await refreshPlayers()
       setNewName(''); setNewClasses(new Set())
       toast('Player added')
     } finally { setAdding(false) }
   }
 
   async function saveEdit(id: number) {
-    const u = await playersApi.update(id, { name: editName.trim(), classes: [...editClasses].join(',') })
+    await playersApi.update(id, { name: editName.trim(), classes: [...editClasses].join(',') })
     setEditId(null)
-    setPlayers(prev => prev.map(p => p.id === id ? u : p))
+    await refreshPlayers()
     toast('Player updated')
   }
 
   async function toggleAvailable(p: Player) {
     const u = await playersApi.update(p.id, { is_available: p.is_available ? 0 : 1 })
-    setPlayers(prev => prev.map(x => x.id === p.id ? u : x))
+    await refreshPlayers()
     toast(u.is_available ? 'Marked available' : 'Marked unavailable')
   }
 
   async function remove(id: number) {
     await playersApi.delete(id)
-    setPlayers(prev => prev.filter(p => p.id !== id))
+    await refreshPlayers()
     toast('Player removed')
   }
 
-  if (loading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-5 h-5 text-zinc-600 animate-spin" /></div>
+  if (playersQ.isPending) return <div className="flex items-center justify-center py-16"><Loader2 className="w-5 h-5 text-zinc-600 animate-spin" /></div>
 
   return (
     <div className="space-y-4">
@@ -122,8 +125,8 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
         <div className="relative flex-1 min-w-48">
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search players…"
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/50 transition-colors" />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-base">⌕</span>
+            className={cn(inputCls, 'pl-9')} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600 pointer-events-none" />
         </div>
 
         {/* Class filter chips */}
@@ -133,50 +136,40 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
             return (
               <button key={c} onClick={() => setFilterClass(filterClass === c ? null : c)}
                 title={c}
-                className={cn('w-9 h-9 flex items-center justify-center rounded-xl border transition-all',
-                  filterClass === c ? CLASS_COLOR[c] : 'text-zinc-600 border-zinc-800 hover:border-zinc-600 hover:text-zinc-400')}>
+                className={cn('w-9 h-9 flex items-center justify-center rounded-sm border transition-colors',
+                  filterClass === c ? CLASS_COLOR[c] : 'text-zinc-600 border-zinc-700 bg-zinc-900 hover:border-zinc-600 hover:text-zinc-400')}>
                 <Icon className="w-4 h-4" />
               </button>
             )
           })}
         </div>
 
-
         {/* Availability filter */}
-        <div className="flex rounded-xl overflow-hidden border border-zinc-800 text-xs font-medium">
+        <div className="flex rounded-sm overflow-hidden border border-zinc-700">
           {(['all', 'available', 'unavailable'] as AvailFilter[]).map(f => (
             <button key={f} onClick={() => setAvailFilter(f)}
-              className={cn('px-2.5 py-2 capitalize transition-colors',
-                availFilter === f ? 'bg-zinc-700 text-zinc-100' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300')}>
+              className={cn('px-2.5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.12em] transition-colors',
+                availFilter === f ? 'bg-zinc-700 text-zinc-50' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300')}>
               {f}
             </button>
           ))}
         </div>
 
-        <span className="text-sm text-zinc-700 font-mono">{filtered.length}/{players.length}</span>
+        <span className="text-sm text-zinc-600 font-mono">{filtered.length}/{players.length}</span>
 
-        <button onClick={() => setCompactView(v => !v)}
-          title={compactView ? 'List view' : 'Grid view'}
-          className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 transition-colors">
-          {compactView ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
-        </button>
+        <Button onClick={() => setCompactView(v => !v)} title={compactView ? 'List view' : 'Grid view'} className="px-2.5"
+          icon={compactView ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />} aria-label="Toggle view" />
 
-        <button onClick={exportCsv} title="Export CSV"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition-colors">
-          <Download className="w-3.5 h-3.5" /> Export
-        </button>
+        <Button onClick={exportCsv} title="Export CSV" icon={<Download className="w-3.5 h-3.5" />}>Export</Button>
 
         {canManage && (
-          <button onClick={() => setShowImport(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition-colors">
-            <Upload className="w-3.5 h-3.5" /> Import
-          </button>
+          <Button onClick={() => setShowImport(true)} icon={<Upload className="w-3.5 h-3.5" />}>Import</Button>
         )}
       </div>
 
       {/* Duplicate warning banner */}
       {duplicateNames.size > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-400/8 border border-red-400/20 text-sm text-red-400">
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-sm bg-red-600/10 border border-red-700 text-sm text-red-400">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           {duplicateNames.size} duplicate name{duplicateNames.size > 1 ? 's' : ''} detected — players should have unique names
         </div>
@@ -192,10 +185,10 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
             const cls = parseClasses(p.classes)
             const isEditing = editId === p.id
             if (isEditing) return (
-              <div key={p.id} className="flex flex-col gap-1.5 px-2.5 py-2 rounded-xl bg-zinc-900 border border-amber-500/40">
+              <div key={p.id} className="flex flex-col gap-1.5 px-2.5 py-2 panel border-amber-700">
                 <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveEdit(p.id); if (e.key === 'Escape') setEditId(null) }}
-                  className="w-full px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-xs text-zinc-100 focus:outline-none" />
+                  className={cn(inputSmCls, 'w-full px-2 py-1 text-xs')} />
                 <div className="flex items-center justify-between gap-1">
                   <div className="flex gap-0.5">
                     {CLASSES.map(c => (
@@ -212,7 +205,7 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
             )
             return (
               <div key={p.id} className={cn(
-                'group relative flex flex-col gap-1 px-2.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800',
+                'group relative flex flex-col gap-1 px-2.5 py-2 panel',
                 !p.is_available && 'opacity-40'
               )}>
                 <span className="text-xs text-zinc-200 truncate font-medium leading-tight">{p.name}</span>
@@ -240,11 +233,11 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
 
           {/* Add card */}
           {canManage && (gridAddOpen ? (
-            <div className="flex flex-col gap-1.5 px-2.5 py-2 rounded-xl bg-zinc-900 border border-amber-500/40">
+            <div className="flex flex-col gap-1.5 px-2.5 py-2 panel border-amber-700">
               <input value={newName} onChange={e => setNewName(e.target.value)} autoFocus
                 onKeyDown={e => { if (e.key === 'Enter') add(); if (e.key === 'Escape') { setGridAddOpen(false); setNewName(''); setNewClasses(new Set()) } }}
                 placeholder="Name…"
-                className="w-full px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none" />
+                className={cn(inputSmCls, 'w-full px-2 py-1 text-xs')} />
               <div className="flex items-center justify-between gap-1">
                 <div className="flex gap-0.5">
                   {CLASSES.map(c => (
@@ -266,7 +259,7 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
             </div>
           ) : (
             <button onClick={() => setGridAddOpen(true)}
-              className="flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl border border-dashed border-zinc-700 text-zinc-600 hover:text-zinc-400 hover:border-zinc-500 transition-colors min-h-[52px]">
+              className="flex items-center justify-center gap-1 px-2.5 py-2 rounded-sm border border-dashed border-zinc-700 text-zinc-600 hover:text-zinc-400 hover:border-zinc-500 transition-colors min-h-[52px]">
               <Plus className="w-3.5 h-3.5" /><span className="text-xs">Add</span>
             </button>
           ))}
@@ -274,18 +267,18 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
       )}
 
       {/* Table */}
-      {!compactView && <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+      {!compactView && <div className="panel overflow-hidden">
 
         {/* Column headers */}
-        <div className="flex items-center gap-0 px-4 py-2.5 border-b border-zinc-800">
+        <div className="panel-head flex items-center gap-0 px-4 py-2">
           {/* Name sort */}
           <button onClick={() => toggleSort('name')}
-            className={cn('flex-1 text-left flex items-center gap-1 text-sm font-mono uppercase tracking-wider transition-colors',
-              sortBy === 'name' ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-400')}>
-            Name {sortBy === 'name' && <span className="text-[10px]">{sortAsc ? '▲' : '▼'}</span>}
+            className={cn('flex-1 text-left flex items-center gap-1.5 font-display text-[10px] font-semibold uppercase tracking-[0.2em] transition-colors',
+              sortBy === 'name' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300')}>
+            Name {sortBy === 'name' && <span className="text-[8px]">{sortAsc ? '▲' : '▼'}</span>}
           </button>
           {/* Classes header */}
-          <div className="w-32 mr-4 text-center text-xs font-mono uppercase tracking-wider text-zinc-600">Classes</div>
+          <div className="w-32 mr-4 text-center font-display text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Classes</div>
           {/* Avail header */}
           <div className="w-8 mr-2" />
           {canManage && <div className="w-16" />}
@@ -312,7 +305,7 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
                   <div className="flex-1 flex items-center gap-2 min-w-0 mr-2">
                     <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus
                       onKeyDown={e => { if (e.key === 'Enter') saveEdit(p.id); if (e.key === 'Escape') setEditId(null) }}
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-base text-zinc-100 focus:outline-none" />
+                      className={cn(inputSmCls, 'flex-1 text-base')} />
                   </div>
                   <div className="flex gap-1 w-32 mr-4 justify-center">
                     {CLASSES.map(c => (
@@ -387,11 +380,11 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
 
         {/* Add row */}
         {canManage && (
-          <div className="flex items-center gap-0 px-4 py-2.5 border-t border-zinc-800 bg-zinc-900/50">
+          <div className="flex items-center gap-0 px-4 py-2.5 border-t border-zinc-800 bg-zinc-950/40">
             <input value={newName} onChange={e => setNewName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && add()}
               placeholder="Add player…"
-              className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-base text-zinc-100 placeholder:text-zinc-600 focus:outline-none mr-2" />
+              className={cn(inputSmCls, 'flex-1 text-base mr-2')} />
             <div className="flex gap-1 w-32 mr-4 justify-center">
               {CLASSES.map(c => (
                 <span key={c} className="w-10 flex justify-center">
@@ -401,10 +394,8 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
               ))}
             </div>
             <div className="w-8 mr-2" />
-            <button onClick={add} disabled={adding || !newName.trim()}
-              className="flex items-center gap-1 px-4 py-2 rounded-lg bg-amber-500 text-black text-sm font-semibold hover:bg-amber-400 transition-colors disabled:opacity-40 w-16 justify-center">
-              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            </button>
+            <Button variant="primary" onClick={add} loading={adding} disabled={!newName.trim()} className="w-16 py-2.5"
+              icon={<Plus className="w-4 h-4" />} aria-label="Add player" />
           </div>
         )}
       </div>}
@@ -412,7 +403,7 @@ export default function PlayersTab({ slug, role }: { slug: string; role: ViewRol
       {showImport && (
         <ImportModal
           slug={slug}
-          onImported={p => setPlayers(p)}
+          onImported={p => { qc.setQueryData(qk.players(slug), p); refreshPlayers() }}
           onClose={() => setShowImport(false)}
         />
       )}

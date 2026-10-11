@@ -49,19 +49,17 @@ export function MiniTeamCard({
 
   return (
     <div className={cn(
-      'border rounded-xl overflow-hidden flex flex-col min-h-0',
-      isFull
-        ? 'bg-emerald-950/20 border-emerald-500/30'
-        : isMe ? 'bg-zinc-900 border-amber-500/40' : 'bg-zinc-900 border-zinc-800',
+      'panel overflow-hidden flex flex-col min-h-0',
+      isFull ? 'bg-emerald-950 border-emerald-600' : isMe ? 'border-amber-700' : '',
     )}>
       {/* Header: team name + counter */}
       <div className={cn(
-        'px-2.5 pt-1.5 pb-1 border-b border-zinc-800/60 flex-shrink-0',
-        isFull ? 'bg-emerald-500/5' : isMe ? 'bg-amber-500/5' : '',
+        'panel-head px-2.5 py-1.5 flex-shrink-0',
+        isFull ? 'bg-emerald-900/40 border-emerald-800' : isMe ? 'bg-amber-950/60' : '',
       )}>
         <div className="flex items-center justify-between gap-1">
-          <span className={cn('text-sm font-semibold truncate',
-            isFull ? 'text-emerald-300' : isMe ? 'text-amber-300' : 'text-zinc-200')}>
+          <span className={cn('font-display text-xs font-bold tracking-[0.04em] truncate',
+            isFull ? 'text-emerald-300' : isMe ? 'text-amber-300' : 'text-zinc-100')}>
             {teamLabel}
           </span>
           <span className={cn('text-xs font-mono font-bold flex-shrink-0',
@@ -182,10 +180,10 @@ export function MyStatsPanel({
   const remainingColor = remaining === 0 ? 'text-red-400' : remaining < 2 ? 'text-amber-400' : 'text-zinc-100'
 
   return (
-    <div className="flex-none bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-3 flex items-center gap-6">
+    <div className="panel flex-none px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2">
       {/* Budget */}
       <div className="flex flex-col leading-none">
-        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mb-1">Remaining</span>
+        <span className="text-[10px] font-display font-semibold uppercase tracking-[0.2em] text-zinc-600 mb-1">Remaining</span>
         <div className="flex items-baseline gap-1.5">
           <span className={cn('text-3xl font-black font-mono tabular-nums', remainingColor)}>
             {remaining.toFixed(1)}
@@ -196,10 +194,10 @@ export function MyStatsPanel({
         </div>
       </div>
 
-      <div className="w-px h-10 bg-zinc-700/50 flex-shrink-0" />
+      <div className="w-px h-10 bg-zinc-700 flex-shrink-0 hidden xl:block" />
 
       {/* Class requirements */}
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-4">
         <ClassReqBadge cls="arc" required={1} have={arcHave} />
         <ClassReqBadge cls="cav" required={2} have={cavHave} />
       </div>
@@ -207,128 +205,6 @@ export function MyStatsPanel({
   )
 }
 
-// ─── My Team Panel (captain view only) ───────────────────────────────────────
-
-export function MyTeamPanel({
-  captain, players, playersPerTeam, halfBudget,
-}: {
-  captain:        SessionDetail['captains'][number]
-  players:        SessionDetail['purchases']
-  playersPerTeam: number
-  halfBudget:     boolean
-}) {
-  const isFull     = players.length >= playersPerTeam
-  const teamLabel  = captain.team_name || `${captain.display_name}'s team`
-  const emptySlots = Math.max(0, playersPerTeam - players.length)
-
-  return (
-    <div className={cn(
-      'flex-none border rounded-2xl overflow-hidden',
-      isFull ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-amber-500/5 border-amber-500/20',
-    )}>
-      {/* Line 1: "My Team" label + team name + counter */}
-      <div className={cn(
-        'px-3 pt-2 pb-1 border-b flex-shrink-0',
-        isFull ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-amber-500/15',
-      )}>
-        <div className="flex items-center justify-between gap-2 mb-0.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-xs font-mono uppercase tracking-widest text-zinc-600">My Team</span>
-            <span className={cn('text-xs font-semibold truncate',
-              isFull ? 'text-emerald-300' : 'text-amber-300')}>
-              {teamLabel}
-            </span>
-          </div>
-          <span className={cn('text-xs font-mono font-bold flex-shrink-0',
-            isFull ? 'text-emerald-400' : 'text-zinc-500')}>
-            {players.length}/{playersPerTeam}
-          </span>
-        </div>
-      </div>
-      {/* Body: captain row + player rows sharing same grid columns */}
-      <div>
-        {/* Captain row */}
-        <div className="grid items-center px-3 py-0.5 gap-x-0.5 border-b border-zinc-800/30"
-          style={{ gridTemplateColumns: PLAYER_ROW_COLS }}>
-          <span className="text-sm text-zinc-500 truncate">{captain.display_name}</span>
-          <ClassCols active={captain.class ? [captain.class as ClassKey] : []} />
-          <div className="flex justify-end"><BudgetDisplay cap={captain} halfMode={halfBudget} /></div>
-        </div>
-        {/* Player rows — always renders playersPerTeam rows (empty placeholders for unfilled slots) */}
-        {players.map((p, i) => (
-          <div key={i} className="grid items-center px-3 py-0.5 gap-x-0.5"
-            style={{ gridTemplateColumns: PLAYER_ROW_COLS }}>
-            <span className="text-sm text-zinc-300 truncate">{p.player_name}</span>
-            <ClassCols active={parseClasses(p.player_classes ?? '')} />
-            <span className="text-right text-sm font-mono text-zinc-600 tabular-nums">{p.price.toFixed(1)}</span>
-          </div>
-        ))}
-        {Array.from({ length: emptySlots }).map((_, i) => (
-          <div key={`empty-${i}`} className="grid items-center px-3 py-0.5 gap-x-0.5"
-            style={{ gridTemplateColumns: PLAYER_ROW_COLS }}>
-            <span className="text-sm text-zinc-800 italic select-none">—</span>
-            <div /><div /><div />
-            <div />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Captain team list (left sidebar for captain view) ───────────────────────
-
-export function CaptainTeamList({
-  captains, purchases, halfBudget, playersPerTeam, className,
-}: {
-  captains:       SessionDetail['captains']
-  purchases:      SessionDetail['purchases']
-  halfBudget:     boolean
-  playersPerTeam: number
-  className?:     string
-}) {
-  return (
-    <div className={cn('bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col', className)}>
-      <div className="px-3 py-2 border-b border-zinc-800 flex-shrink-0">
-        <span className="text-xs font-mono uppercase tracking-widest text-zinc-500">Other Teams</span>
-      </div>
-      <div className="overflow-y-auto flex-1 divide-y divide-zinc-800/30 min-h-0">
-        {captains.map(cap => {
-          const players = purchases.filter(p => p.captain_id === cap.id)
-          const isFull  = players.length >= playersPerTeam
-          const teamLabel = cap.team_name || `${cap.display_name}'s team`
-          return (
-            <div key={cap.id} className={cn('pt-1.5 pb-1', isFull && 'bg-emerald-500/5')}>
-              {/* Team name + counter */}
-              <div className="flex items-center justify-between gap-1 px-3 mb-0.5">
-                <span className={cn('text-xs font-semibold truncate',
-                  isFull ? 'text-emerald-300' : 'text-zinc-200')}>
-                  {teamLabel}
-                </span>
-                <span className={cn('text-xs font-mono font-bold flex-shrink-0',
-                  isFull ? 'text-emerald-400' : 'text-zinc-500')}>
-                  {players.length}/{playersPerTeam}
-                </span>
-              </div>
-              {/* Captain row + player rows sharing same grid */}
-              <div className="grid items-center px-3 py-0.5 gap-x-0.5 border-b border-zinc-800/20"
-                style={{ gridTemplateColumns: PLAYER_ROW_COLS }}>
-                <span className="text-xs text-zinc-500 truncate">{cap.display_name}</span>
-                <ClassCols active={cap.class ? [cap.class as ClassKey] : []} />
-                <div className="flex justify-end"><BudgetDisplay cap={cap} halfMode={halfBudget} /></div>
-              </div>
-              {players.map((p, i) => (
-                <div key={i} className="grid items-center px-3 py-px gap-x-0.5"
-                  style={{ gridTemplateColumns: PLAYER_ROW_COLS }}>
-                  <span className="text-xs text-zinc-500 truncate">{p.player_name}</span>
-                  <ClassCols active={parseClasses(p.player_classes ?? '')} />
-                  <span className="text-right text-xs font-mono text-zinc-700 tabular-nums">{p.price.toFixed(1)}</span>
-                </div>
-              ))}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+// `MyTeamPanel` and `CaptainTeamList` (a captain-only roster layout from before
+// the captain view was consolidated onto the shared `TeamGrid` below) were
+// never called from anywhere and have been removed rather than restyled.

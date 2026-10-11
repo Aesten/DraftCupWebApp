@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { Label } from '@/components/ui/Panel'
 
-// ─── Input styles ─────────────────────────────────────────────────────────────
+// ─── Input styles (defined once in components/ui/Field) ───────────────────────
 
-export const inputCls = 'w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/50 transition-colors'
-export const inputSmCls = 'px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/40 transition-colors'
+export { inputCls, inputSmCls } from '@/components/ui/Field'
 
 // ─── Player classes ───────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ export function parseClasses(classes: string): ClassKey[] {
 // ─── Shared UI primitives ─────────────────────────────────────────────────────
 
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">{children}</p>
+  return <p className="mb-2"><Label>{children}</Label></p>
 }
 
 export function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
@@ -97,7 +97,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     <div className="group relative inline-flex">
       {children}
       <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
-        px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 shadow-xl
+        px-2.5 py-1.5 rounded-sm bg-zinc-800 border border-zinc-700 shadow-xl
         text-xs text-zinc-300 whitespace-nowrap
         opacity-0 group-hover:opacity-100 transition-opacity duration-150">
         {label}

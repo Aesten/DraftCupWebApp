@@ -1,11 +1,14 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { type Matchup } from '@/api/brackets'
 import { tournamentsApi, type Tournament } from '@/api/tournaments'
 import { type GameMap, type Faction } from '@/api/maps'
 import { cn, imgSrc } from '@/lib/utils'
-import { Check, Map, Dices, Settings2, Lock, Pencil, X, Swords } from 'lucide-react'
+import { Map, Dices, Settings2, Lock, Pencil, Swords, Loader2 } from 'lucide-react'
 import { SectionLabel, EmptyState, type ViewRole } from './shared'
 import { useToast } from '@/context/ToastContext'
+import { Button, Modal, PanelHead } from '@/components/ui'
+import { qk, useInvalidate, useTournament, useMaps, useFactions, useMatchups } from '@/queries'
 import MapPoolModal from './MapPoolModal'
 import RollModal from './RollModal'
 import ManualPickModal from './ManualPickModal'
@@ -21,13 +24,13 @@ const FACTION_ICONS: Record<string, string> = { Aserai, Battania, Empire, Khuzai
 
 function FactionCircle({ name }: { name: string | undefined | null }) {
   const src = name ? FACTION_ICONS[name] : undefined
-  const base = 'w-6 h-6 rounded-full flex-shrink-0'
+  const base = 'w-7 h-7 rounded-full flex-shrink-0'
   if (!src) return (
-    <div className={cn(base, 'bg-white/10 border border-white/10 flex items-center justify-center')}>
-      <span className="text-[8px] text-white/30">?</span>
+    <div className={cn(base, 'bg-zinc-800 border border-zinc-700 flex items-center justify-center')}>
+      <span className="text-[8px] text-zinc-500">?</span>
     </div>
   )
-  return <img src={src} alt={name ?? ''} className={cn(base, 'object-cover border border-white/20')} />
+  return <img src={src} alt={name ?? ''} className={cn(base, 'object-cover border border-amber-700 shadow-[0_0_0_2px_#0c0b09]')} />
 }
 
 // ─── Matchup display card ─────────────────────────────────────────────────────
@@ -41,16 +44,14 @@ function MatchupDisplayCard({ matchup }: {
     <div className="relative h-40 overflow-hidden">
       {matchup?.map_image
         ? <img src={imgSrc(matchup.map_image)} alt={matchup.map_name ?? ''} className="absolute inset-0 w-full h-full object-cover" />
-        : <div className="absolute inset-0 bg-zinc-800/50" />
+        : <div className="absolute inset-0 bg-zinc-800" />
       }
-      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/10 to-black/50" />
+      <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/65 via-zinc-950/10 to-zinc-950/60" />
 
       {/* Map name — top right */}
       {rolled && (
         <div className="absolute top-2 right-3">
-          <span className="text-base font-black text-amber-400" style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>
-            {matchup!.map_name}
-          </span>
+          <span className="font-display text-sm font-bold text-amber-400">{matchup!.map_name}</span>
         </div>
       )}
 
@@ -64,7 +65,7 @@ function MatchupDisplayCard({ matchup }: {
             </span>
             <FactionCircle name={matchup?.faction_a_name} />
           </div>
-          <span className="text-base font-black text-white/50 flex-shrink-0 px-1" style={{ fontFamily: '"Barlow Condensed", sans-serif' }}>VS</span>
+          <span className="font-display text-sm font-bold text-zinc-100 tracking-[0.2em] flex-shrink-0 px-1">VS</span>
           {/* Side B */}
           <div className="flex items-center gap-2 flex-1 justify-start min-w-0">
             <FactionCircle name={matchup?.faction_b_name} />
@@ -78,7 +79,7 @@ function MatchupDisplayCard({ matchup }: {
       {/* Not rolled */}
       {!matchup && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-zinc-700 text-xs italic">Not rolled yet</p>
+          <p className="text-zinc-600 text-xs italic">Not rolled yet</p>
         </div>
       )}
     </div>
@@ -103,23 +104,15 @@ function RoundSlot({ round, label, slug, poolMaps, usedInOtherRounds, hardExclud
   const [showManual, setShowManual] = useState(false)
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800/70">
-        <span className="text-sm font-black text-zinc-100">{label}</span>
-        {canManage && (
-          <div className="flex items-center gap-0.5">
-            <button onClick={() => setShowManual(true)}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
-              <Pencil className="w-2.5 h-2.5" /> Manual
-            </button>
-            <button onClick={() => setShowRoll(true)}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
-              <Dices className="w-2.5 h-2.5" /> {matchup ? 'Reroll' : 'Roll'}
-            </button>
-          </div>
-        )}
-      </div>
+    <div className="panel overflow-hidden">
+      <PanelHead meta={canManage && (
+        <>
+          <Button size="sm" variant="ghost" onClick={() => setShowManual(true)} icon={<Pencil className="w-2.5 h-2.5" />} className="px-2 py-1">Manual</Button>
+          <Button size="sm" variant="ghost" onClick={() => setShowRoll(true)} icon={<Dices className="w-2.5 h-2.5" />} className="px-2 py-1">{matchup ? 'Reroll' : 'Roll'}</Button>
+        </>
+      )}>
+        {label}
+      </PanelHead>
 
       <MatchupDisplayCard matchup={matchup} />
 
@@ -158,7 +151,6 @@ function FinalsPoolModal({ maps, slug, project, matchups, onProjectUpdate, onClo
 }) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
-  const mouseDownOnBackdrop = useRef(false)
 
   const currentPool: number[] = (() => {
     try { return JSON.parse(project.finals_map_pool ?? '[]') } catch { return [] }
@@ -194,66 +186,48 @@ function FinalsPoolModal({ maps, slug, project, matchups, onProjectUpdate, onClo
   const activeMaps = maps.filter(m => m.is_active)
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget }}
-      onClick={e => { if (mouseDownOnBackdrop.current && !saving && e.target === e.currentTarget) onClose() }}
+    <Modal
+      title="Finals map pool"
+      onClose={() => { if (!saving) onClose() }}
+      width="w-full max-w-sm"
+      className="max-h-[90vh] flex flex-col [&>div:nth-child(2)]:overflow-y-auto [&>div:nth-child(2)]:flex-1"
+      footer={<>
+        <span className={cn('flex-1 self-center text-xs font-mono', pool.length === FINALS_POOL_SIZE ? 'text-green-400' : 'text-zinc-600')}>
+          {pool.length}/{FINALS_POOL_SIZE} selected
+        </span>
+        <Button variant="primary" onClick={save} loading={saving} disabled={pool.length === 0}>Save</Button>
+      </>}
     >
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 w-full max-w-sm mx-4 space-y-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between flex-shrink-0">
-          <div>
-            <p className="text-sm font-semibold text-zinc-100">Finals map pool</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Select {FINALS_POOL_SIZE} maps for the pick-ban phase.
-            </p>
-          </div>
-          {!saving && (
-            <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 transition-colors ml-4">
-              <X className="w-4 h-4" />
+      <p className="text-xs text-zinc-500 mb-3">Select {FINALS_POOL_SIZE} maps for the pick-ban phase.</p>
+      <div className="space-y-1">
+        {activeMaps.map(m => {
+          const selected = pool.includes(m.id)
+          const inPool   = tournamentPool.includes(m.id)
+          const used     = usedMapIds.has(m.id)
+          const full     = pool.length >= FINALS_POOL_SIZE && !selected
+          const disabled = !inPool || (full && !selected)
+
+          return (
+            <button key={m.id} onClick={() => toggle(m.id)} disabled={disabled}
+              title={!inPool ? 'Not in tournament pool' : undefined}
+              className={cn(
+                'w-full flex items-center gap-2 px-3 py-2 rounded-sm border text-sm text-left transition-colors',
+                selected
+                  ? 'bg-amber-500/10 border-amber-700 text-amber-300'
+                  : disabled
+                    ? 'bg-zinc-950 border-zinc-800 text-zinc-700 cursor-not-allowed opacity-50'
+                    : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-600',
+              )}>
+              <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                {selected && <span className="lozenge" />}
+              </div>
+              <span className="flex-1 truncate">{m.name}</span>
+              {used && <span className="text-[9px] font-mono text-zinc-500 italic">used</span>}
             </button>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-1">
-          {activeMaps.map(m => {
-            const selected = pool.includes(m.id)
-            const inPool   = tournamentPool.includes(m.id)
-            const used     = usedMapIds.has(m.id)
-            const full     = pool.length >= FINALS_POOL_SIZE && !selected
-            const disabled = !inPool || (full && !selected)
-
-            return (
-              <button key={m.id} onClick={() => toggle(m.id)} disabled={disabled}
-                title={!inPool ? 'Not in tournament pool' : undefined}
-                className={cn(
-                  'w-full flex items-center gap-2 px-3 py-2 rounded-xl border text-sm text-left transition-all',
-                  selected
-                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-300'
-                    : disabled
-                      ? 'bg-zinc-950 border-zinc-800 text-zinc-700 cursor-not-allowed opacity-50'
-                      : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-600',
-                )}>
-                <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
-                  {selected && <Check className="w-3 h-3 text-amber-400" />}
-                </div>
-                <span className="flex-1 truncate font-medium">{m.name}</span>
-                {used && <span className="text-[9px] font-mono text-zinc-500 italic">used</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="flex items-center justify-between flex-shrink-0">
-          <span className={cn('text-xs font-mono', pool.length === FINALS_POOL_SIZE ? 'text-green-400' : 'text-zinc-600')}>
-            {pool.length}/{FINALS_POOL_SIZE} selected
-          </span>
-          <button onClick={save} disabled={saving || pool.length === 0}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-sm font-semibold transition-colors disabled:opacity-40">
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+          )
+        })}
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -281,17 +255,14 @@ function FinalsPoolSection({ maps, slug, project, matchups, onProjectUpdate, can
     .filter(Boolean) as GameMap[]
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3">
+    <div className="panel p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className={cn('text-xs font-mono',
           currentPool.length === FINALS_POOL_SIZE ? 'text-green-400' : 'text-zinc-600')}>
           {currentPool.length}/{FINALS_POOL_SIZE} maps selected
         </span>
         {canManage && allRolled && (
-          <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors">
-            <Settings2 className="w-3 h-3" /> Edit pool
-          </button>
+          <Button size="sm" onClick={() => setShowModal(true)} icon={<Settings2 className="w-3 h-3" />}>Edit pool</Button>
         )}
       </div>
 
@@ -306,9 +277,9 @@ function FinalsPoolSection({ maps, slug, project, matchups, onProjectUpdate, can
         <div className="flex flex-wrap gap-2">
           {selectedMaps.map(m => (
             <div key={m.id}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700">
-              <Swords className="w-3 h-3 text-amber-500/60 flex-shrink-0" />
-              <span className="text-xs font-medium text-zinc-200">{m.name}</span>
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-zinc-800 border border-zinc-700">
+              <Swords className="w-3 h-3 text-amber-600 flex-shrink-0" />
+              <span className="font-display text-[11px] font-bold text-zinc-100">{m.name}</span>
             </div>
           ))}
         </div>
@@ -329,18 +300,37 @@ function FinalsPoolSection({ maps, slug, project, matchups, onProjectUpdate, can
 
 const ROUND_COUNT = 4
 
-export default function MatchupsTab({ slug, maps, factions, matchups, setMatchups, role, project, onProjectUpdate }: {
-  slug:            string
-  maps:            GameMap[]
-  factions:        Faction[]
-  matchups:        Matchup[]
-  setMatchups:     React.Dispatch<React.SetStateAction<Matchup[]>>
-  role:            ViewRole
-  project:         Tournament
-  onProjectUpdate: (p: Tournament) => void
-}) {
+export default function MatchupsTab({ slug, role }: { slug: string; role: ViewRole }) {
   const canManage = role === 'admin' || role === 'host'
+  const qc         = useQueryClient()
+  const invalidate = useInvalidate()
+  const projectQ   = useTournament(slug)
+  const mapsQ      = useMaps()
+  const factionsQ  = useFactions()
+  const matchupsQ  = useMatchups(slug)
   const [showPoolModal, setShowPoolModal] = useState(false)
+
+  const project  = projectQ.data
+  const maps     = mapsQ.data ?? []
+  const factions = factionsQ.data ?? []
+  const matchups = matchupsQ.data ?? []
+
+  // Modals hand back the updated row; write it into the cache directly.
+  const onProjectUpdate = (p: Tournament) => qc.setQueryData(qk.tournament(slug), p)
+  function onRolled(m: Matchup) {
+    qc.setQueryData(qk.matchups(slug), (prev: Matchup[] | undefined) => {
+      const list = prev ?? []
+      const i = list.findIndex(x => x.round === m.round && x.bracket_id === m.bracket_id)
+      return i >= 0 ? list.map((x, idx) => idx === i ? m : x) : [...list, m]
+    })
+    invalidate(qk.matchups(slug))
+  }
+
+  if (!project || mapsQ.isPending || factionsQ.isPending || matchupsQ.isPending) return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 className="w-5 h-5 text-zinc-600 animate-spin" />
+    </div>
+  )
 
   const tournamentPool: number[] = (() => {
     try { return JSON.parse(project.map_pool ?? '[]') } catch { return [] }
@@ -352,13 +342,6 @@ export default function MatchupsTab({ slug, maps, factions, matchups, setMatchup
 
   function getUsedIds(excludingRound: number): number[] {
     return matchups.filter(m => m.round !== excludingRound && m.map_id).map(m => m.map_id!)
-  }
-
-  function onRolled(m: Matchup) {
-    setMatchups(prev => {
-      const i = prev.findIndex(x => x.round === m.round && x.bracket_id === m.bracket_id)
-      return i >= 0 ? prev.map((x, idx) => idx === i ? m : x) : [...prev, m]
-    })
   }
 
   const poolConfigured = tournamentPool.length > 0
@@ -373,11 +356,9 @@ export default function MatchupsTab({ slug, maps, factions, matchups, setMatchup
             <p className="text-sm text-zinc-600">4 rounds · map + faction assignment for each</p>
           </div>
           {canManage && (
-            <button onClick={() => setShowPoolModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition-colors">
-              <Settings2 className="w-3.5 h-3.5" />
+            <Button onClick={() => setShowPoolModal(true)} icon={<Settings2 className="w-3.5 h-3.5" />}>
               {poolConfigured ? `Map pool (${tournamentPool.length})` : 'Configure map pool'}
-            </button>
+            </Button>
           )}
         </div>
 

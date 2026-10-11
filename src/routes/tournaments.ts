@@ -2,9 +2,10 @@ import { Hono } from 'hono'
 import { queryAll, queryOne, execute } from '../db/database'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
 import { slugify } from '../types'
-import type { Tournament, HostJwtPayload, CaptainJwtPayload } from '../types'
+import type { Tournament, HostJwtPayload } from '../types'
 import { resolve, join } from 'path'
 import { mkdirSync, existsSync, unlinkSync, readdirSync } from 'fs'
+import { canAccessTournament, canManageTournament } from '../services/access'
 
 const tournaments = new Hono<AuthEnv>()
 
@@ -17,19 +18,6 @@ function uniqueSlug(base: string): string {
     slug = `${base}-${counter++}`
   }
   return slug
-}
-
-function canAccess(auth: AuthEnv['Variables']['auth'], tournament: Tournament): boolean {
-  if (auth.role === 'admin') return true
-  if (auth.role === 'host')  return tournament.id === (auth as HostJwtPayload).tournamentId
-  if (auth.role === 'auctioneer') return tournament.id === auth.projectId
-  if (auth.role === 'captain') {
-    const row = queryOne<{ tournament_id: number }>(
-      'SELECT tournament_id FROM auctions WHERE id = ?', [(auth as CaptainJwtPayload).auctionId]
-    )
-    return row?.tournament_id === tournament.id
-  }
-  return false
 }
 
 // ─── List Tournaments ─────────────────────────────────────────────────────────
@@ -69,7 +57,7 @@ tournaments.get('/:slug', requireAuth('admin', 'host', 'auctioneer', 'captain'),
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
 
-  if (!canAccess(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   return c.json(tournament)
 })
@@ -96,9 +84,7 @@ tournaments.patch('/:slug', requireAuth('admin', 'host'), async (c) => {
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
 
-  if (auth.role === 'host' && tournament.id !== (auth as HostJwtPayload).tournamentId) {
-    return c.json({ error: 'Forbidden' }, 403)
-  }
+  if (!canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<{
     name?:             string
@@ -374,7 +360,7 @@ tournaments.post('/stats/:auctionId', requireAuth('admin', 'host'), async (c) =>
   const auction   = queryOne<{ tournament_id: number }>('SELECT tournament_id FROM auctions WHERE id = ?', [auctionId])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE id = ?', [auction.tournament_id])
-  if (!tournament || !canAccess(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!tournament || !canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const body = await c.req.formData()
   const file = body.get('file')
@@ -412,7 +398,7 @@ tournaments.post('/stats/:auctionId/config', requireAuth('admin', 'host'), async
   const auction   = queryOne<{ tournament_id: number }>('SELECT tournament_id FROM auctions WHERE id = ?', [auctionId])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE id = ?', [auction.tournament_id])
-  if (!tournament || !canAccess(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!tournament || !canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const body = await c.req.json()
   const dir  = resolve(process.cwd(), 'uploads', 'stats')
@@ -429,7 +415,7 @@ tournaments.delete('/stats/:auctionId', requireAuth('admin', 'host'), (c) => {
   const auction   = queryOne<{ tournament_id: number }>('SELECT tournament_id FROM auctions WHERE id = ?', [auctionId])
   if (!auction) return c.json({ error: 'Auction not found' }, 404)
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE id = ?', [auction.tournament_id])
-  if (!tournament || !canAccess(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!tournament || !canManageTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const statsPath  = resolve(process.cwd(), 'uploads', 'stats', `${auctionId}.json`)
   const configPath = resolve(process.cwd(), 'uploads', 'stats', `${auctionId}.config.json`)

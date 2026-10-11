@@ -5,7 +5,8 @@
     "moduleResolution": "bundler",
     "target": "esnext",
     "strict": true,
+    "skipLibCheck": true,
     "outDir": "./dist"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "shared/**/*", "scripts/**/*"]
 }

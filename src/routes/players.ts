@@ -1,26 +1,11 @@
 import { Hono } from 'hono'
 import { queryAll, queryOne, execute, getDb } from '../db/database'
 import { requireAuth, type AuthEnv } from '../middleware/auth'
-import type { Player, Tournament, PlayerClass, HostJwtPayload, CaptainJwtPayload } from '../types'
+import type { Player, Tournament, PlayerClass } from '../types'
 import { PLAYER_CLASSES } from '../types'
+import { canAccessTournament, canManageTournament } from '../services/access'
 
 const players = new Hono<AuthEnv>()
-
-function canAccessTournament(
-  auth: AuthEnv['Variables']['auth'],
-  tournament: Tournament
-): boolean {
-  if (auth.role === 'admin') return true
-  if (auth.role === 'host') return tournament.id === (auth as HostJwtPayload).tournamentId
-  if (auth.role === 'auctioneer') return tournament.id === (auth as { projectId: number }).projectId
-  if (auth.role === 'captain') {
-    const row = queryOne<{ tournament_id: number }>(
-      'SELECT tournament_id FROM auctions WHERE id = ?', [(auth as CaptainJwtPayload).auctionId]
-    )
-    return row?.tournament_id === tournament.id
-  }
-  return false
-}
 
 function parseClassList(raw: unknown): string {
   if (!raw) return ''
@@ -36,7 +21,7 @@ players.get('/tournament/:slug', requireAuth('admin', 'host', 'auctioneer', 'cap
   const slug = c.req.param('slug')
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (!canAccessTournament(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
   return c.json(queryAll<Player>(
     'SELECT * FROM players WHERE tournament_id = ? ORDER BY name ASC', [tournament.id]
   ))
@@ -49,7 +34,7 @@ players.post('/tournament/:slug', requireAuth('admin', 'host'), async (c) => {
   const slug = c.req.param('slug')
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (!canAccessTournament(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<{ name: string; classes?: string[] | string }>()
   if (!data.name?.trim()) return c.json({ error: 'Name is required' }, 400)
@@ -72,7 +57,7 @@ players.post('/tournament/:slug/bulk', requireAuth('admin', 'host'), async (c) =
   const slug = c.req.param('slug')
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE slug = ?', [slug])
   if (!tournament) return c.json({ error: 'Tournament not found' }, 404)
-  if (!canAccessTournament(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const items = await c.req.json<Array<{ name: string; classes?: string[] | string }>>()
   if (!Array.isArray(items) || items.length === 0)
@@ -107,7 +92,7 @@ players.patch('/:id', requireAuth('admin', 'host'), async (c) => {
   const player = queryOne<Player>('SELECT * FROM players WHERE id = ?', [id])
   if (!player) return c.json({ error: 'Player not found' }, 404)
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE id = ?', [player.tournament_id])!
-  if (!canAccessTournament(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const data = await c.req.json<Partial<{ name: string; classes: string[] | string; is_available: number }>>()
   execute(
@@ -130,7 +115,7 @@ players.delete('/:id', requireAuth('admin', 'host'), (c) => {
   const player = queryOne<Player>('SELECT * FROM players WHERE id = ?', [id])
   if (!player) return c.json({ error: 'Player not found' }, 404)
   const tournament = queryOne<Tournament>('SELECT * FROM tournaments WHERE id = ?', [player.tournament_id])!
-  if (!canAccessTournament(auth, tournament)) return c.json({ error: 'Forbidden' }, 403)
+  if (!canAccessTournament(auth, tournament.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const purchased = queryOne<{ count: number }>(
     'SELECT COUNT(*) as count FROM session_purchases WHERE player_id = ?', [id]

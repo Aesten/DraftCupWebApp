@@ -1,81 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useAuth } from '@/context/AuthContext'
-import { sessionsApi, type SessionDetail, type AuctionSession } from '@/api/sessions'
-import { useWs } from '@/hooks/useWs'
+import { sessionsApi } from '@/api/sessions'
 import { useTitle } from '@/hooks/useTitle'
+import { usePermissions } from '@/hooks/usePermissions'
+import { useSessionDetail } from '@/queries'
 import { cn } from '@/lib/utils'
-import { Loader2, Pause, Check, Sword, Users } from 'lucide-react'
+import { Loader2, Sword, Users } from 'lucide-react'
 import CurrentPlayerCard from '@/components/auction/CurrentPlayerCard'
 import BidChat from '@/components/auction/BidChat'
 import FreeChat from '@/components/auction/FreeChat'
 import { TeamGrid } from '@/components/auction/TeamRoster'
 import ProgressCard from '@/components/auction/ProgressCard'
 import PlayerPoolModal from '@/components/auction/PlayerPoolModal'
+import { StatusSeal } from './AuctionSessionPage'
+import { Heading } from '@/components/ui'
 
 type Tab = 'bid' | 'teams'
 
-function StatusBadge({ status }: { status: AuctionSession['status'] }) {
-  if (status === 'live') return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400">
-      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Live
-    </span>
-  )
-  if (status === 'paused') return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400">
-      <Pause className="w-2.5 h-2.5" /> Paused
-    </span>
-  )
-  if (status === 'finished') return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-zinc-700/50 border border-zinc-600 text-zinc-400">
-      <Check className="w-2.5 h-2.5" /> Finished
-    </span>
-  )
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-500">
-      Pending
-    </span>
-  )
-}
-
 export default function MobileAuctionPage() {
   const { slug, sessionId } = useParams<{ slug: string; sessionId: string }>()
-  const { user } = useAuth()
+  const { canRunAuction, isCaptain, captainId: myCaptainId } = usePermissions()
 
-  const [detail,    setDetail]    = useState<SessionDetail | null>(null)
-  const [loading,   setLoading]   = useState(true)
-  const [error,     setError]     = useState('')
   const [tab,       setTab]       = useState<Tab>('bid')
   const [showPool,  setShowPool]  = useState(false)
   const [starting,  setStarting]  = useState(false)
 
-  const loadSeqRef = useRef(0)
   const id = Number(sessionId)
+  const { data: detail, isPending: loading, error: loadError, refresh: load } = useSessionDetail(id)
+  const error = loadError ? (loadError instanceof Error ? loadError.message : 'Failed to load session') : ''
 
   useTitle(detail ? `${detail.auctionName} · Auction` : 'Auction')
-
-  const load = useCallback(async () => {
-    const seq = ++loadSeqRef.current
-    try {
-      const d = await sessionsApi.get(id)
-      if (seq !== loadSeqRef.current) return
-      setDetail(d)
-      setError('')
-    } catch (e: unknown) {
-      if (seq !== loadSeqRef.current) return
-      setError(e instanceof Error ? e.message : 'Failed to load session')
-    }
-  }, [id])
-
-  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
-
-  useWs({
-    sessionId: id,
-    token: null,
-    onMessage: load,
-    onOpen:    load,
-    enabled: detail?.session.status !== 'finished',
-  })
 
   async function handleStart() {
     if (!detail) return
@@ -84,19 +38,14 @@ export default function MobileAuctionPage() {
     catch { /* ignore */ } finally { setStarting(false) }
   }
 
-  const role        = user?.role
-  const isCaptain   = role === 'captain'
-  const canControl  = role === 'auctioneer' || role === 'admin'
-  const myCaptainId = isCaptain ? user?.captainId : undefined
-
   if (loading) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center">
       <Loader2 className="w-6 h-6 text-zinc-600 animate-spin" />
     </div>
   )
 
   if (error || !detail) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <p className="text-zinc-500 text-sm">{error || 'Session not found.'}</p>
     </div>
   )
@@ -116,35 +65,36 @@ export default function MobileAuctionPage() {
   ]
 
   return (
-    <div className="bg-zinc-950 flex flex-col" style={{ height: '100dvh' }}>
+    <div className="flex flex-col" style={{ height: '100dvh' }}>
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-zinc-800 px-4 py-2.5 flex items-center justify-between">
+      <div className="flex-shrink-0 border-b border-zinc-700 px-4 py-2.5 flex items-center justify-between gap-3"
+        style={{ backgroundColor: 'var(--color-surface-head)' }}>
         <div className="flex flex-col min-w-0">
-          <span className="text-xs font-bold text-zinc-100 truncate">{auctionName}</span>
+          <span className="font-display text-xs font-bold tracking-[0.06em] text-zinc-50 truncate">{auctionName}</span>
           {slug && (
-            <Link to={`/t/${slug}`} className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">
+            <Link to={`/t/${slug}`} className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
               ← {slug}
             </Link>
           )}
         </div>
-        <StatusBadge status={session.status} />
+        <StatusSeal status={session.status} />
       </div>
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {isFinished ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-4">
-            <p className="text-xl font-black text-zinc-100">Auction complete</p>
+            <Heading size="md">Auction complete</Heading>
             <p className="text-sm text-zinc-500">{progress.sold} drafted · {progress.cycled} skipped</p>
           </div>
         ) : tab === 'bid' ? (
-          <div className="h-full flex flex-col gap-3 p-3">
+          <div className="h-full flex flex-col gap-3 p-3 overflow-y-auto">
             <div className="flex-shrink-0 space-y-3">
               <CurrentPlayerCard
                 detail={detail}
                 isLive={isLive}
                 isPaused={isPaused}
-                onStart={canControl ? handleStart : undefined}
+                onStart={canRunAuction ? handleStart : undefined}
                 starting={starting}
                 currentBid={currentBid}
               />
@@ -163,13 +113,14 @@ export default function MobileAuctionPage() {
                 captainId={myCaptainId}
                 teamFull={isMyTeamFull}
                 onLoad={load}
+                className="max-h-72"
               />
             </div>
             <FreeChat
               sessionId={id}
               messages={chatMessages}
               onLoad={load}
-              className="flex-1 min-h-0"
+              className="flex-1 min-h-48"
             />
           </div>
         ) : (
@@ -177,7 +128,7 @@ export default function MobileAuctionPage() {
             <TeamGrid
               captains={captains}
               purchases={purchases}
-              myCaptainId={myCaptainId}
+              myCaptainId={myCaptainId ?? undefined}
               halfBudget={halfBudget}
               playersPerTeam={progress.playersPerTeam}
               cols={1}
@@ -188,11 +139,11 @@ export default function MobileAuctionPage() {
 
       {/* Bottom tab bar */}
       {!isFinished && (
-        <div className="flex-shrink-0 border-t border-zinc-800 bg-zinc-900 flex">
+        <div className="flex-shrink-0 border-t border-zinc-800 flex" style={{ backgroundColor: 'var(--color-surface-head)' }}>
           {TABS.map(({ id: tabId, label, Icon }) => (
             <button key={tabId} onClick={() => setTab(tabId)}
               className={cn(
-                'flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-semibold uppercase tracking-widest transition-colors',
+                'flex-1 flex flex-col items-center gap-1 py-3 font-display text-[10px] font-bold uppercase tracking-[0.2em] transition-colors',
                 tab === tabId ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
               )}>
               <Icon className="w-4 h-4" />
@@ -205,7 +156,7 @@ export default function MobileAuctionPage() {
       {showPool && (
         <PlayerPoolModal
           sessionId={id}
-          canPromote={canControl}
+          canPromote={canRunAuction}
           onSetActive={load}
           onClose={() => setShowPool(false)}
         />
