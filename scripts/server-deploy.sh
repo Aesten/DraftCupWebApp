@@ -97,7 +97,7 @@ bun install --frozen-lockfile
 STAGE="build"
 log "Building client"
 rm -rf dist/client.next
-(cd client && bunx tsc -b && bunx vite build --outDir ../dist/client.next --emptyOutDir)
+(cd client && bunx --bun tsc -b && bunx --bun vite build --outDir ../dist/client.next --emptyOutDir)
 
 STAGE="migrate-check"
 bun scripts/db-ops.ts migrate-check "$BACKUP"
