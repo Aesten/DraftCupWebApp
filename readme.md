@@ -114,4 +114,42 @@ bun run test         # server tests
 
 The sample data is "BDC XVI": Division 1 finished with a played bracket, Division 2 live in the middle of its auction. The seed prints the login codes (host `DRAFT-HOST01`, auctioneer `DRAFT-AUCT01`, captains `DRAFT-CAPT01` to `DRAFT-CAPT08`). It refuses to run on a database that already contains a tournament unless you pass `--force`.
 
+---
+
+## Deployment
+
+Production runs on `aesten@3550h` from `~/web/bdc-webapp` as `bdc-webapp.service` (bun on the `PORT` from `.env`, behind nginx for `bdc.aesten.net`). The database (`data/draftcup.db`) and `uploads/` live only on the server.
+
+To deploy, commit to `master`, push, then run from a dev machine:
+
+```bash
+git push origin master
+scripts/deploy.sh            # add --force to deploy during a live auction/pick-ban
+```
+
+[scripts/server-deploy.sh](scripts/server-deploy.sh) then runs on the server:
+
+1. Refuses if the server checkout has local changes, the commit isn't a fast-forward, or an auction (`live`/`paused`) or pick-ban (`banning`/`picking`) is in progress.
+2. Backs up the database to `data-backup/deploy-<utc time>-<previous commit>.db` (online `VACUUM INTO`, integrity-checked; the newest 20 are kept).
+3. Fast-forwards to the commit, installs with frozen lockfiles and builds the client into `dist/client.next`.
+4. Runs the new migrations against the fresh backup copy, so a broken migration fails before the live database is touched.
+5. Swaps the build in, restarts the service and waits for `/api/health`.
+
+If any step after the backup fails, the code, dependencies and build are rolled back to the previous commit (and the service restarted if it already was). The database is not restored automatically, because that would discard anything written since the restart; the backup path is printed instead.
+
+**Schema changes** go in [src/db/migrations.ts](src/db/migrations.ts): append a migration with the next version number, never edit an old one. The server applies pending migrations on start-up, each in its own transaction, and records the version in `PRAGMA user_version`.
+
+**One-time server setup** (needs your sudo password, run on the server):
+
+```bash
+# let the deploy script restart the service without a password
+echo 'aesten ALL=(root) NOPASSWD: /usr/bin/systemctl restart bdc-webapp.service' \
+  | sudo tee /etc/sudoers.d/bdc-webapp-deploy && sudo chmod 440 /etc/sudoers.d/bdc-webapp-deploy \
+  && sudo visudo -cf /etc/sudoers.d/bdc-webapp-deploy
+# start the service on boot
+sudo systemctl enable bdc-webapp.service
+```
+
+To restore a backup: `sudo systemctl stop bdc-webapp.service`, copy the backup over `data/draftcup.db` (deleting `draftcup.db-wal`/`-shm`), then start the service.
+
 See [spec.md](spec.md) for the full technical specification including API routes, database schema, and component descriptions.
